@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, FindOptionsWhere, MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
 import { CallEntity, CallStatus } from './calls.entity';
+export { CallStatus };
 import { CreateCallDto } from './dto/create-call.dto';
 import { IpfsService } from '../storage/ipfs.service';
 
@@ -26,32 +27,32 @@ export class CallsService {
     @InjectRepository(CallEntity)
     private readonly callsRepository: Repository<CallEntity>,
     private readonly ipfsService: IpfsService,
-  ) {}
+  ) { }
 
   async findAll(filters: CallFilter = {}): Promise<PaginatedCalls> {
-    const { 
-      status, 
-      creatorAddress, 
-      startDate, 
-      endDate, 
-      limit = 20, 
-      offset = 0 
+    const {
+      status,
+      creatorAddress,
+      startDate,
+      endDate,
+      limit = 20,
+      offset = 0
     } = filters;
 
     const where: FindOptionsWhere<CallEntity> = {};
-    
+
     if (status) {
       where.status = status;
     }
-    
+
     if (creatorAddress) {
       where.creatorAddress = creatorAddress;
     }
-    
+
     if (startDate) {
       where.createdAt = MoreThanOrEqual(startDate);
     }
-    
+
     if (endDate) {
       where.createdAt = LessThanOrEqual(endDate);
     }
@@ -88,7 +89,7 @@ export class CallsService {
 
   async findByUser(address: string, filters: CallFilter = {}): Promise<PaginatedCalls> {
     const { limit = 20, offset = 0 } = filters;
-    
+
     const [data, totalCount] = await this.callsRepository.findAndCount({
       where: { creatorAddress: address },
       order: { createdAt: 'DESC' },
@@ -117,7 +118,7 @@ export class CallsService {
 
     try {
       const ipfsCid = await this.ipfsService.pinCallContent(ipfsContent);
-      
+
       // Create the call entity
       const call = new CallEntity();
       call.title = createCallDto.title;
@@ -131,7 +132,7 @@ export class CallsService {
       call.ipfsCid = ipfsCid;
       call.status = CallStatus.DRAFT;
       call.conditionJson = createCallDto.conditionJson;
-      
+
       return await this.callsRepository.save(call);
     } catch (error) {
       throw new BadRequestException(`Failed to create call draft: ${error.message}`);
@@ -140,7 +141,7 @@ export class CallsService {
 
   async getFeed(filters: CallFilter = {}): Promise<PaginatedCalls> {
     const { limit = 20, offset = 0 } = filters;
-    
+
     // Get trending/recent calls - ordering by creation date descending
     const [data, totalCount] = await this.callsRepository.findAndCount({
       where: { status: CallStatus.OPEN }, // Only show open calls in feed

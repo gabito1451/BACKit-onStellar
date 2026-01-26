@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { typeOrmConfig } from './config/database.config';
+import { CallsModule } from './calls/calls.module';
 import { HealthModule } from './health/health.module';
 import { OracleModule } from './oracle/oracle.module';
 
@@ -10,26 +10,22 @@ import { OracleModule } from './oracle/oracle.module';
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
-      validate: (env) => {
-        const requiredVars = [
-          'POSTGRES_HOST',
-          'POSTGRES_PORT',
-          'POSTGRES_USER',
-          'POSTGRES_PASSWORD',
-          'POSTGRES_DB',
-          'PORT',
-        ];
-        requiredVars.forEach((key) => {
-          if (!env[key]) {
-            throw new Error(`Missing env var ${key}`);
-          }
-        });
-        return env;
-      },
     }),
-    TypeOrmModule.forRoot(typeOrmConfig),
+    TypeOrmModule.forRoot({
+      type: 'postgres',
+      host: process.env.DB_HOST || process.env.POSTGRES_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT || process.env.POSTGRES_PORT || '5432', 10),
+      username: process.env.DB_USERNAME || process.env.POSTGRES_USER || 'postgres',
+      password: process.env.DB_PASSWORD || process.env.POSTGRES_PASSWORD || 'postgres',
+      database: process.env.DB_NAME || process.env.POSTGRES_DB || 'backit',
+      autoLoadEntities: true,
+      synchronize: process.env.NODE_ENV !== 'production', // Only sync in development
+    }),
+    CallsModule,
     HealthModule,
     OracleModule,
   ],
+  controllers: [],
+  providers: [],
 })
 export class AppModule { }
