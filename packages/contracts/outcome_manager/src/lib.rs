@@ -1,28 +1,67 @@
-mod storage;
+#![no_std]
+
 mod auth;
+mod events;
+mod storage;
 mod verification;
+mod test;
 
 use soroban_sdk::{
-    contract, contractimpl, Env, Address, Map, Vec, BytesN,
+    contract, contractimpl, symbol_short, Address, BytesN, Env, IntoVal, Map, Vec, Symbol,
 };
 
-use storage::{Outcome, SignedOutcome, InstanceKey, TempKey};
 use auth::require_admin;
+use events::{emit_outcome_finalized, emit_outcome_submitted, emit_payout_claimed};
+use storage::{InstanceKey, Outcome, SignedOutcome, TempKey};
 use verification::{build_message, verify_signature};
+
+// ─── Cross-contract helpers ────────────────────────────────────────────────────
+
+/// Call `resolve_call(call_id, outcome, end_price)` on the CallRegistry.
+fn registry_resolve_call(env: &Env, registry: &Address, call_id: u64, outcome: u32, end_price: i128) {
+    let args = (call_id, outcome, end_price).into_val(env);
+    env.invoke_contract::<()>(registry, &Symbol::new(env, "resolve_call"), args);
+}
+
+/// Call `release_escrow(call_id, to, amount)` on the CallRegistry.
+fn registry_release_escrow(env: &Env, registry: &Address, call_id: u64, to: &Address, amount: i128) {
+    let args = (call_id, to.clone(), amount).into_val(env);
+    env.invoke_contract::<()>(registry, &Symbol::new(env, "release_escrow"), args);
+}
+
+/// Call `mark_settled(call_id)` on the CallRegistry.
+fn registry_mark_settled(env: &Env, registry: &Address, call_id: u64) {
+    let args = (call_id,).into_val(env);
+    env.invoke_contract::<()>(registry, &Symbol::new(env, "mark_settled"), args);
+}
+
+// ─── Contract ─────────────────────────────────────────────────────────────────
 
 #[contract]
 pub struct OutcomeManager;
 
 #[contractimpl]
 impl OutcomeManager {
-    // -------- Initialization --------
+    // ── Initialization ─────────────────────────────────────────────────────────
 
+    /// Initialize the contract.
+    ///
+    /// * `admin`   – address with privileged control
+    /// * `oracles` – list of trusted oracle ed25519 public keys (32-byte)
+    /// * `quorum`  – minimum matching votes required to finalize an outcome
+    ///
+    /// # Panics
+    /// If called more than once (`already initialized`).
     pub fn initialize(
         env: Env,
         admin: Address,
         oracles: Vec<BytesN<32>>,
         quorum: u32,
     ) {
+        if env.storage().instance().has(&InstanceKey::Admin) {
+            panic!("already initialized");
+        }
+
         admin.require_auth();
 
         if quorum == 0 || quorum > oracles.len() as u32 {
@@ -30,7 +69,7 @@ impl OutcomeManager {
         }
 
         let mut oracle_map = Map::<BytesN<32>, bool>::new(&env);
-        for o in oracles {
+        for o in oracles.iter() {
             oracle_map.set(o, true);
         }
 
@@ -39,66 +78,78 @@ impl OutcomeManager {
         env.storage().instance().set(&InstanceKey::Quorum, &quorum);
     }
 
-    // -------- Admin Controls --------
+    // ── Admin Controls ─────────────────────────────────────────────────────────
 
     pub fn add_oracle(env: Env, oracle: BytesN<32>) {
         require_admin(&env);
-
         let mut oracles: Map<BytesN<32>, bool> =
             env.storage().instance().get(&InstanceKey::Oracles).unwrap();
-
         oracles.set(oracle, true);
         env.storage().instance().set(&InstanceKey::Oracles, &oracles);
     }
 
     pub fn remove_oracle(env: Env, oracle: BytesN<32>) {
         require_admin(&env);
-
         let mut oracles: Map<BytesN<32>, bool> =
             env.storage().instance().get(&InstanceKey::Oracles).unwrap();
-
         oracles.remove(oracle);
         env.storage().instance().set(&InstanceKey::Oracles, &oracles);
     }
 
     pub fn set_quorum(env: Env, quorum: u32) {
         require_admin(&env);
-
         let oracles: Map<BytesN<32>, bool> =
             env.storage().instance().get(&InstanceKey::Oracles).unwrap();
-
         if quorum == 0 || quorum > oracles.len() as u32 {
             panic!("invalid quorum");
         }
-
         env.storage().instance().set(&InstanceKey::Quorum, &quorum);
     }
 
-    // -------- Oracle Submission --------
+    pub fn set_admin(env: Env, new_admin: Address) {
+        require_admin(&env);
+        env.storage().instance().set(&InstanceKey::Admin, &new_admin);
+    }
 
-    pub fn submit_outcome(env: Env, signed: SignedOutcome) {
+    // ── Oracle Submission ──────────────────────────────────────────────────────
+
+    /// Accept a signed outcome report from a trusted oracle.
+    ///
+    /// Once `quorum` oracles submit the **same** outcome (identified by the
+    /// SHA-256 hash of the canonical message), the call is automatically
+    /// finalized and the CallRegistry is updated via cross-contract call.
+    ///
+    /// # Panics
+    /// - `unauthorized oracle`    – pubkey not in the trusted set
+    /// - `already settled`        – quorum was already reached
+    /// - `duplicate submission`   – this oracle already voted on this call
+    /// - `invalid outcome`        – outcome is not 1 (UP) or 2 (DOWN)
+    /// - (ed25519_verify panics)  – signature is invalid; tx is reverted
+    pub fn submit_outcome(env: Env, registry: Address, signed: SignedOutcome) {
+        // 1. Validate oracle
         let oracles: Map<BytesN<32>, bool> =
             env.storage().instance().get(&InstanceKey::Oracles).unwrap();
-
         if !oracles.contains_key(signed.oracle_pubkey.clone()) {
             panic!("unauthorized oracle");
         }
 
+        // 2. Reject if already settled
         if env.storage().instance().has(&InstanceKey::FinalOutcome(signed.call_id)) {
             panic!("already settled");
         }
 
-        if env
-            .storage()
-            .temporary()
-            .has(&TempKey::Submission(
-                signed.oracle_pubkey.clone(),
-                signed.call_id,
-            ))
-        {
+        // 3. Guard against duplicate oracle votes
+        let submission_key = TempKey::Submission(signed.oracle_pubkey.clone(), signed.call_id);
+        if env.storage().temporary().has(&submission_key) {
             panic!("duplicate submission");
         }
 
+        // 4. Validate outcome range
+        if signed.outcome != 1 && signed.outcome != 2 {
+            panic!("invalid outcome: must be 1 (UP) or 2 (DOWN)");
+        }
+
+        // 5. Build canonical message and verify ed25519 signature
         let message = build_message(
             &env,
             signed.call_id,
@@ -106,42 +157,28 @@ impl OutcomeManager {
             signed.price,
             signed.timestamp,
         );
+        verify_signature(&env, &signed.oracle_pubkey, &signed.signature, &message);
 
-        if !verify_signature(
-            &env,
-            &signed.oracle_pubkey,
-            &signed.signature,
-            &message,
-        ) {
-            panic!("invalid signature");
-        }
+        // 6. Hash outcome candidate for vote counting
+        let outcome_hash: BytesN<32> = env.crypto().sha256(&message).into();
 
-        let outcome_hash = env.crypto().sha256(&message);
+        // 7. Record oracle's vote (prevents duplicates)
+        env.storage().temporary().set(&submission_key, &outcome_hash);
 
-        env.storage().temporary().set(
-            &TempKey::Submission(signed.oracle_pubkey, signed.call_id),
-            &outcome_hash,
-        );
-
-        let votes: u32 = env
-            .storage()
-            .temporary()
-            .get(&TempKey::VoteCount(outcome_hash.clone().into(), signed.call_id))
-            .unwrap_or(0);
-
+        // 8. Tally votes for this outcome candidate
+        let vote_key = TempKey::VoteCount(outcome_hash.clone(), signed.call_id);
+        let votes: u32 = env.storage().temporary().get(&vote_key).unwrap_or(0);
         let votes = votes + 1;
+        env.storage().temporary().set(&vote_key, &votes);
 
-        env.storage().temporary().set(
-            &TempKey::VoteCount(outcome_hash.clone().into(), signed.call_id),
-            &votes,
-        );
+        emit_outcome_submitted(&env, signed.call_id, &signed.oracle_pubkey, signed.outcome);
 
-        let quorum: u32 =
-            env.storage().instance().get(&InstanceKey::Quorum).unwrap();
-
+        // 9. Finalize if quorum reached
+        let quorum: u32 = env.storage().instance().get(&InstanceKey::Quorum).unwrap();
         if votes >= quorum {
             Self::finalize(
-                env,
+                &env,
+                &registry,
                 Outcome {
                     call_id: signed.call_id,
                     outcome: signed.outcome,
@@ -152,15 +189,140 @@ impl OutcomeManager {
         }
     }
 
-    fn finalize(env: Env, outcome: Outcome) {
-        env.storage().instance().set(
-            &InstanceKey::FinalOutcome(outcome.call_id),
-            &outcome,
-        );
+    // ── Settlement ─────────────────────────────────────────────────────────────
 
-        env.events().publish(
-            ("outcome", "finalized"),
-            outcome.call_id,
-        );
+    fn finalize(env: &Env, registry: &Address, outcome: Outcome) {
+        // Persist finalized outcome (blocks re-submission)
+        env.storage()
+            .instance()
+            .set(&InstanceKey::FinalOutcome(outcome.call_id), &outcome);
+
+        // Cross-contract: resolve the call in the registry
+        registry_resolve_call(env, registry, outcome.call_id, outcome.outcome, outcome.price);
+
+        emit_outcome_finalized(env, outcome.call_id, outcome.outcome, outcome.price);
+    }
+
+    // ── Payout Claim ───────────────────────────────────────────────────────────
+
+    /// Claim a pro-rata payout for a winning staker.
+    ///
+    /// **Payout formula** (no protocol fee):
+    /// ```text
+    /// payout = staker_winning_stake
+    ///        + floor(staker_winning_stake * total_losing_stake / total_winning_stake)
+    /// ```
+    /// The staker recovers their own stake plus a proportional share of the
+    /// losing pool.  All arithmetic uses `checked_mul` / `checked_div` so
+    /// overflow or division-by-zero is caught at runtime.
+    ///
+    /// # Security
+    /// The `Claimed` flag is written **before** the external `release_escrow`
+    /// call, preventing reentrancy attacks.
+    ///
+    /// # Panics
+    /// - `call not settled`       – quorum not yet reached
+    /// - `already claimed`        – staker already claimed
+    /// - `nothing to claim`       – staker_winning_stake ≤ 0
+    /// - `invalid total winning`  – total_winning_stake ≤ 0
+    pub fn claim_payout(
+        env: Env,
+        registry: Address,
+        call_id: u64,
+        staker: Address,
+        staker_winning_stake: i128,
+        total_winning_stake: i128,
+        total_losing_stake: i128,
+    ) {
+        // 1. Require staker's authorization
+        staker.require_auth();
+
+        // 2. Verify the call is settled
+        if !env.storage().instance().has(&InstanceKey::FinalOutcome(call_id)) {
+            panic!("call not settled");
+        }
+
+        // 3. Prevent double-claim
+        let claimed_key = InstanceKey::Claimed(call_id, staker.clone());
+        if env.storage().instance().has(&claimed_key) {
+            panic!("already claimed");
+        }
+
+        // 4. Validate inputs
+        if staker_winning_stake <= 0 {
+            panic!("nothing to claim");
+        }
+        if total_winning_stake <= 0 {
+            panic!("invalid total winning stake");
+        }
+
+        // 5. Pro-rata payout: staker_stake + floor(staker_stake * losing_pool / winning_pool)
+        let prize_share = staker_winning_stake
+            .checked_mul(total_losing_stake)
+            .expect("overflow in prize calculation")
+            .checked_div(total_winning_stake)
+            .expect("division by zero");
+
+        let payout = staker_winning_stake
+            .checked_add(prize_share)
+            .expect("overflow in payout sum");
+
+        // 6. Mark as claimed BEFORE external call (reentrancy guard)
+        env.storage().instance().set(&claimed_key, &true);
+
+        // 7. Release tokens from CallRegistry escrow → staker
+        registry_release_escrow(&env, &registry, call_id, &staker, payout);
+
+        emit_payout_claimed(&env, call_id, &staker, payout);
+    }
+
+    // ── Settlement Finalization ─────────────────────────────────────────────────
+
+    /// Mark a call as fully settled in the registry (admin only).
+    ///
+    /// Call this after all winners have claimed, or after a grace period.
+    pub fn mark_settled(env: Env, registry: Address, call_id: u64) {
+        require_admin(&env);
+
+        if !env.storage().instance().has(&InstanceKey::FinalOutcome(call_id)) {
+            panic!("call not finalized");
+        }
+
+        registry_mark_settled(&env, &registry, call_id);
+    }
+
+    // ── View Functions ─────────────────────────────────────────────────────────
+
+    /// Return the finalized outcome, or panic if not yet settled.
+    pub fn get_outcome(env: Env, call_id: u64) -> Outcome {
+        env.storage()
+            .instance()
+            .get(&InstanceKey::FinalOutcome(call_id))
+            .expect("call not settled")
+    }
+
+    /// `true` if the staker has already claimed their payout for this call.
+    pub fn has_claimed(env: Env, call_id: u64, staker: Address) -> bool {
+        env.storage()
+            .instance()
+            .has(&InstanceKey::Claimed(call_id, staker))
+    }
+
+    /// Return the current quorum threshold.
+    pub fn get_quorum(env: Env) -> u32 {
+        env.storage()
+            .instance()
+            .get(&InstanceKey::Quorum)
+            .expect("not initialized")
+    }
+
+    /// Return whether a given oracle pubkey is trusted.
+    pub fn is_oracle(env: Env, oracle: BytesN<32>) -> bool {
+        let oracles: Map<BytesN<32>, bool> = env
+            .storage()
+            .instance()
+            .get(&InstanceKey::Oracles)
+            .expect("not initialized");
+        oracles.contains_key(oracle)
     }
 }

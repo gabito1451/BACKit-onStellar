@@ -1,8 +1,7 @@
 use soroban_sdk::{Env, Address};
-
 use crate::storage::InstanceKey;
 
-pub fn require_admin(env: &Env) {
+pub fn require_admin(env: &Env) -> Address {
     let admin: Address = env
         .storage()
         .instance()
@@ -10,4 +9,5 @@ pub fn require_admin(env: &Env) {
         .expect("admin not set");
 
     admin.require_auth();
+    admin
 }
