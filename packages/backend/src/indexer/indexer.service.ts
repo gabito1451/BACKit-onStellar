@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Cron } from '@nestjs/schedule';
@@ -14,25 +19,30 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
   private lastProcessedLedger: number | null = null;
   private isProcessing = false;
   private pollingInterval: NodeJS.Timeout | null = null;
+  private isPolling = false;
 
   constructor(
     @InjectRepository(EventLog)
     private readonly eventLogRepository: Repository<EventLog>,
     private readonly eventParser: EventParser,
     private readonly notificationsService: NotificationsService,
-  ) { }
+  ) {}
 
   async onModuleInit() {
     this.logger.log('Initializing Indexer Service...');
+    this.startPolling();
 
     // Initialize Soroban RPC client
-    const rpcUrl = process.env.SOROBAN_RPC_URL || 'https://soroban-testnet.stellar.org';
+    const rpcUrl =
+      process.env.SOROBAN_RPC_URL || 'https://soroban-testnet.stellar.org';
     this.server = new SorobanRpc.Server(rpcUrl);
 
     // Load last processed ledger from database
     await this.loadLastProcessedLedger();
 
-    this.logger.log(`Indexer initialized. Last processed ledger: ${this.lastProcessedLedger || 'None'}`);
+    this.logger.log(
+      `Indexer initialized. Last processed ledger: ${this.lastProcessedLedger || 'None'}`,
+    );
   }
 
   async onModuleDestroy() {
@@ -48,7 +58,9 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
   @Cron('*/5 * * * * *')
   async pollEvents() {
     if (this.isProcessing) {
-      this.logger.debug('Indexer is already processing events, skipping this cycle');
+      this.logger.debug(
+        'Indexer is already processing events, skipping this cycle',
+      );
       return;
     }
 
@@ -109,12 +121,16 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
       }
 
       // Update checkpoint
-      if (response.latestLedger && response.latestLedger > (this.lastProcessedLedger || 0)) {
+      if (
+        response.latestLedger &&
+        response.latestLedger > (this.lastProcessedLedger || 0)
+      ) {
         this.lastProcessedLedger = response.latestLedger;
         await this.saveCheckpoint(response.latestLedger);
-        this.logger.log(`Processed ${processedCount} events. Checkpoint updated to ledger ${response.latestLedger}`);
+        this.logger.log(
+          `Processed ${processedCount} events. Checkpoint updated to ledger ${response.latestLedger}`,
+        );
       }
-
     } catch (error) {
       this.logger.error('Failed to process events', error);
       // Don't throw - let the next polling cycle retry
@@ -141,9 +157,14 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
       // Trigger in-app notifications based on event type
       await this.dispatchNotification(parsedEvent);
 
-      this.logger.verbose(`Persisted event: ${parsedEvent.eventType} at ledger ${parsedEvent.ledger}`);
+      this.logger.verbose(
+        `Persisted event: ${parsedEvent.eventType} at ledger ${parsedEvent.ledger}`,
+      );
     } catch (error) {
-      this.logger.error(`Failed to persist event: ${parsedEvent.eventType}`, error);
+      this.logger.error(
+        `Failed to persist event: ${parsedEvent.eventType}`,
+        error,
+      );
       throw error;
     }
   }
@@ -179,7 +200,10 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
         }
       }
     } catch (err) {
-      this.logger.warn(`Failed to dispatch notification for event ${parsedEvent.eventType}`, err);
+      this.logger.warn(
+        `Failed to dispatch notification for event ${parsedEvent.eventType}`,
+        err,
+      );
       // Non-fatal — don't rethrow
     }
   }
@@ -207,9 +231,14 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
         .select('MAX(event.ledger)', 'maxLedger')
         .getRawOne();
 
-      this.lastProcessedLedger = latestEvent?.maxLedger ? Number(latestEvent.maxLedger) : null;
+      this.lastProcessedLedger = latestEvent?.maxLedger
+        ? Number(latestEvent.maxLedger)
+        : null;
     } catch (error) {
-      this.logger.warn('Failed to load last processed ledger, starting from latest', error);
+      this.logger.warn(
+        'Failed to load last processed ledger, starting from latest',
+        error,
+      );
       this.lastProcessedLedger = null;
     }
   }
@@ -284,5 +313,17 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
       latestEventLedger: latestEvent?.ledger || null,
       latestEventTimestamp: latestEvent?.timestamp || null,
     };
+  }
+
+  private async startPolling() {
+    setInterval(async () => {
+      if (this.isPolling) return;
+      this.isPolling = true;
+      try {
+        await this.pollEvents();
+      } finally {
+        this.isPolling = false;
+      }
+    }, 5000);
   }
 }

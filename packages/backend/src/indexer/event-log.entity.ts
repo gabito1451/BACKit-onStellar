@@ -1,4 +1,10 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, Index } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  Index,
+} from 'typeorm';
 
 export enum EventType {
   CALL_CREATED = 'call_created',
@@ -15,6 +21,13 @@ export enum EventType {
 export class EventLog {
   @PrimaryGeneratedColumn()
   id: number;
+
+  @Column()
+  @Index()
+  eventId: string;
+
+  @Column()
+  pagingToken: string;
 
   @Column({ type: 'varchar', length: 64 })
   @Index()

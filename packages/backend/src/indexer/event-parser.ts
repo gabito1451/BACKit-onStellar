@@ -12,15 +12,15 @@ export class EventParser {
     try {
       // Extract contract ID and topics
       const contractId = event.contractId;
-      const topics = event.topic.map(topic => this.parseScVal(topic));
-      
+      const topics = event.topic.map((topic) => this.parseScVal(topic));
+
       if (topics.length === 0) {
         return null;
       }
 
       // First topic is usually the event name
       const eventName = topics[0];
-      
+
       // Parse based on contract and event type
       if (eventName === 'call_created') {
         return this.parseCallCreated(event, topics);
@@ -34,7 +34,10 @@ export class EventParser {
         return this.parseAdminChanged(event, topics);
       } else if (eventName === 'outcome_manager_changed') {
         return this.parseOutcomeManagerChanged(event, topics);
-      } else if (eventName === 'outcome_finalized' || eventName === 'finalized') {
+      } else if (
+        eventName === 'outcome_finalized' ||
+        eventName === 'finalized'
+      ) {
         return this.parseOutcomeFinalized(event, topics);
       } else if (eventName === 'initialized') {
         return this.parseInitialized(event, topics);
@@ -56,8 +59,11 @@ export class EventParser {
 
   private parseCallCreated(event: any, topics: any[]): ParsedEvent {
     // call_created(call_id, creator, stake_token, stake_amount, end_ts, token_address, pair_id, ipfs_cid)
+    const data = SorobanSdk.xdr.ScVal.fromXDR(event.value, 'base64');
     return {
       contractId: event.contractId,
+      creator: '',
+      description: '',
       eventType: EventType.CALL_CREATED,
       ledger: event.ledger,
       txHash: event.txHash,
@@ -218,9 +224,20 @@ export class EventParser {
     // Convert bytes to hex string
     return Buffer.from(val).toString('hex');
   }
+
+  private parseStakePlaced(event: any) {
+    // Logic to decode XDR for StakePlaced
+    return {
+      staker: '',
+      amount: 0,
+      callId: '',
+    };
+  }
 }
 
 export interface ParsedEvent {
+  creator?: string;
+  description?: string;
   contractId: string;
   eventType: EventType;
   ledger: number;
