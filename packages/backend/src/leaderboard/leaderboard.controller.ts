@@ -18,12 +18,12 @@ import {
   LeaderboardQueryDto,
   LeaderboardResponseDto,
   UserLeaderboardStatsDto,
-} from './dto/leaderboard.dto';
+} from './leaderboard.dto';
 
 @ApiTags('Leaderboard')
 @Controller('leaderboard')
 export class LeaderboardController {
-  constructor(private readonly leaderboardService: LeaderboardService) {}
+  constructor(private readonly leaderboardService: LeaderboardService) { }
 
   @Get()
   @ApiOperation({

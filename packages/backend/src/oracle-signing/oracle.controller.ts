@@ -1,13 +1,13 @@
 import { Body, Controller, Get, Post, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { OracleSigningService } from './services/oracle-signing.service';
-import { SignPriceDto } from './dto/sign-price.dto';
-import { SignedPriceData, OraclePublicKeyResponse } from './interfaces/oracle.interfaces';
+import { OracleSigningService } from './oracle-signing.service';
+import { SignPriceDto } from './sign-price.dto';
+import { SignedPriceData, OraclePublicKeyResponse } from './oracle.interfaces';
 
 @ApiTags('Oracle')
 @Controller('oracle')
 export class OracleController {
-  constructor(private readonly signingService: OracleSigningService) {}
+  constructor(private readonly signingService: OracleSigningService) { }
 
   @Get('public-key')
   @ApiOperation({

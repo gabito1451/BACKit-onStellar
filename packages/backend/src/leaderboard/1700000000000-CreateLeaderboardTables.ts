@@ -1,4 +1,4 @@
-import { MigrationInterface, QueryRunner, Table, Index } from 'typeorm';
+import { MigrationInterface, QueryRunner, Table, TableIndex } from 'typeorm';
 
 export class CreateLeaderboardTables1700000000000 implements MigrationInterface {
   name = 'CreateLeaderboardTables1700000000000';
@@ -45,12 +45,12 @@ export class CreateLeaderboardTables1700000000000 implements MigrationInterface 
     );
 
     // Composite indexes for efficient leaderboard queries
-    await queryRunner.createIndex('prediction_calls', new Index({ columnNames: ['userId', 'status'], name: 'IDX_calls_userId_status' }));
-    await queryRunner.createIndex('prediction_calls', new Index({ columnNames: ['status', 'settledAt'], name: 'IDX_calls_status_settledAt' }));
-    await queryRunner.createIndex('prediction_calls', new Index({ columnNames: ['status', 'outcome'], name: 'IDX_calls_status_outcome' }));
-    await queryRunner.createIndex('prediction_calls', new Index({ columnNames: ['userId'], name: 'IDX_calls_userId' }));
-    await queryRunner.createIndex('leaderboard_snapshots', new Index({ columnNames: ['period', 'snapshotDate'], name: 'IDX_snapshot_period_date' }));
-    await queryRunner.createIndex('leaderboard_snapshots', new Index({ columnNames: ['userId'], name: 'IDX_snapshot_userId' }));
+    await queryRunner.createIndex('prediction_calls', new TableIndex({ columnNames: ['userId', 'status'], name: 'IDX_calls_userId_status' }));
+    await queryRunner.createIndex('prediction_calls', new TableIndex({ columnNames: ['status', 'settledAt'], name: 'IDX_calls_status_settledAt' }));
+    await queryRunner.createIndex('prediction_calls', new TableIndex({ columnNames: ['status', 'outcome'], name: 'IDX_calls_status_outcome' }));
+    await queryRunner.createIndex('prediction_calls', new TableIndex({ columnNames: ['userId'], name: 'IDX_calls_userId' }));
+    await queryRunner.createIndex('leaderboard_snapshots', new TableIndex({ columnNames: ['period', 'snapshotDate'], name: 'IDX_snapshot_period_date' }));
+    await queryRunner.createIndex('leaderboard_snapshots', new TableIndex({ columnNames: ['userId'], name: 'IDX_snapshot_userId' }));
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

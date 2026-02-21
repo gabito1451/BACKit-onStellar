@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { PredictionCall, LeaderboardSnapshot } from './entities/leaderboard.entity';
+import { PredictionCall, LeaderboardSnapshot } from './leaderboard.entity';
 import { LeaderboardService } from './leaderboard.service';
 import { LeaderboardController } from './leaderboard.controller';
 
@@ -10,4 +10,4 @@ import { LeaderboardController } from './leaderboard.controller';
   providers: [LeaderboardService],
   exports: [LeaderboardService],
 })
-export class LeaderboardModule {}
+export class LeaderboardModule { }

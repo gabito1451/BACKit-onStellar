@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { OracleSigningService } from './services/oracle-signing.service';
+import { OracleSigningService } from './oracle-signing.service';
 import { OracleController } from './oracle.controller';
 
 @Module({
@@ -9,4 +9,4 @@ import { OracleController } from './oracle.controller';
   providers: [OracleSigningService],
   exports: [OracleSigningService],
 })
-export class OracleModule {}
+export class OracleModule { }

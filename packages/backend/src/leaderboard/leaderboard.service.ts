@@ -6,7 +6,7 @@ import {
   CallStatus,
   CallOutcome,
   LeaderboardSnapshot,
-} from '../entities/leaderboard.entity';
+} from './leaderboard.entity';
 import {
   LeaderboardQueryDto,
   LeaderboardSort,
@@ -14,7 +14,7 @@ import {
   LeaderboardEntryDto,
   LeaderboardResponseDto,
   UserLeaderboardStatsDto,
-} from '../dto/leaderboard.dto';
+} from './leaderboard.dto';
 
 const MIN_CALLS_FOR_WINRATE = 5;
 
@@ -28,7 +28,7 @@ export class LeaderboardService {
     @InjectRepository(LeaderboardSnapshot)
     private readonly snapshotRepo: Repository<LeaderboardSnapshot>,
     private readonly dataSource: DataSource,
-  ) {}
+  ) { }
 
   async getLeaderboard(query: LeaderboardQueryDto): Promise<LeaderboardResponseDto> {
     const { sort, timeframe, page, limit } = query;

@@ -1,7 +1,7 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
-import { SignedPriceData, PricePayload, OraclePublicKeyResponse } from '../interfaces/oracle.interfaces';
+import { SignedPriceData, PricePayload, OraclePublicKeyResponse } from './oracle.interfaces';
 
 /**
  * OracleSigningService
@@ -22,7 +22,7 @@ export class OracleSigningService implements OnModuleInit {
   private publicKey: crypto.KeyObject;
   private publicKeyHex: string;
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(private readonly configService: ConfigService) { }
 
   onModuleInit(): void {
     this.loadKeyPair();
@@ -36,7 +36,7 @@ export class OracleSigningService implements OnModuleInit {
     if (!hexSeed) {
       throw new Error(
         'ORACLE_PRIVATE_KEY_HEX is not set. Generate one with: ' +
-          'node -e "const c=require(\'crypto\');console.log(c.generateKeyPairSync(\'ed25519\').privateKey.export({type:\'pkcs8\',format:\'der\'}).slice(-32).toString(\'hex\'))"',
+        'node -e "const c=require(\'crypto\');console.log(c.generateKeyPairSync(\'ed25519\').privateKey.export({type:\'pkcs8\',format:\'der\'}).slice(-32).toString(\'hex\'))"',
       );
     }
 
