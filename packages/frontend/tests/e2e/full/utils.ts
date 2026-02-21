@@ -21,7 +21,7 @@ export class TestHelpers {
       window.localStorage.setItem('wallet_connected', 'true');
       window.localStorage.setItem('wallet_address', 'GD5DQ6KQZYZ2JY5YKZ7XQYBZQZQZQZQZQZQZQZQZQZQZQZQZQZQZQ');
     });
-    
+
     // Reload to apply the mock wallet state
     await page.reload();
   }
@@ -29,51 +29,51 @@ export class TestHelpers {
   static async createTestCall(page: Page) {
     // Navigate to create call page
     await page.goto('/create');
-    
+
     // Fill in call creation form
     await page.getByPlaceholder('Search tokens...').fill(TEST_CALL_DATA.token);
     await page.getByText(TEST_CALL_DATA.token).first().click();
-    
+
     await page.getByPlaceholder('Enter condition').fill(TEST_CALL_DATA.condition);
     await page.getByPlaceholder('Stake amount (USDC)').fill(TEST_CALL_DATA.stake.toString());
     await page.getByPlaceholder('End time').fill(TEST_CALL_DATA.endTime);
     await page.getByPlaceholder('Thesis (Markdown supported)').fill(TEST_CALL_DATA.thesis);
-    
+
     // Submit the form
     await page.getByRole('button', { name: 'Create Call' }).click();
-    
+
     // Wait for navigation to call detail page
     await page.waitForURL(/\/call\/.+/);
-    
+
     // Return the call ID from URL
     const url = page.url();
-    const callId = url.split('/').pop();
+    const callId = url.split('/').pop()!;
     return callId;
   }
 
   static async stakeOnCall(page: Page, callId: string, side: 'YES' | 'NO' = 'YES', amount: number = 50) {
     // Navigate to call detail page
     await page.goto(`/call/${callId}`);
-    
+
     // Select stake side
     await page.getByRole('button', { name: side }).click();
-    
+
     // Enter stake amount
     await page.getByPlaceholder('Amount (USDC)').fill(amount.toString());
-    
+
     // Submit stake
     await page.getByRole('button', { name: 'Stake' }).click();
-    
+
     // Wait for confirmation (this would normally involve wallet signing)
     await page.waitForTimeout(2000); // Simulate transaction processing
-    
+
     // Verify stake was recorded
     await expect(page.getByText(`Staked ${amount} USDC on ${side}`)).toBeVisible();
   }
 
   static async viewProfile(page: Page, address: string = TEST_WALLET_ADDRESS) {
     await page.goto(`/profile/${address}`);
-    
+
     // Verify profile page loaded
     await expect(page.getByText('Profile')).toBeVisible();
     await expect(page.getByText(address.substring(0, 10))).toBeVisible();
@@ -81,7 +81,7 @@ export class TestHelpers {
 
   static async navigateToFeed(page: Page) {
     await page.goto('/feed');
-    
+
     // Verify feed loaded
     await expect(page.getByText('For You')).toBeVisible();
     await expect(page.getByText('Following')).toBeVisible();
