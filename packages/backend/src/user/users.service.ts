@@ -12,15 +12,102 @@ export class UsersService {
     private readonly usersRepo: Repository<Users>,
 
     private readonly analyticsService: AnalyticsService,
-  ) {}
+  ) { }
 
   private generateReferralCode(): string {
     return Math.random().toString(36).substring(2, 8).toUpperCase();
   }
 
+  async findOrCreateByAddress(walletAddress: string): Promise<Users> {
+    let user = await this.usersRepo.findOne({ where: { walletAddress } });
+    if (!user) {
+      user = this.usersRepo.create({
+        walletAddress,
+        referralCode: this.generateReferralCode(),
+      });
+      user = await this.usersRepo.save(user);
+    }
+    return user;
+  }
+
+  async follow(followerAddress: string, followingAddress: string) {
+    if (followerAddress === followingAddress) {
+      throw new BadRequestException('You cannot follow yourself');
+    }
+
+    const follower = await this.findOrCreateByAddress(followerAddress);
+    const following = await this.findOrCreateByAddress(followingAddress);
+
+    // Initialize following array if not loaded
+    const loadedFollower = await this.usersRepo.findOne({
+      where: { id: follower.id },
+      relations: ['following'],
+    });
+
+    if (!loadedFollower) {
+      throw new BadRequestException('Follower user not found');
+    }
+
+    if (loadedFollower.following.some((u) => u.id === following.id)) {
+      throw new BadRequestException('Already following this user');
+    }
+
+    loadedFollower.following.push(following);
+    return this.usersRepo.save(loadedFollower);
+  }
+
+  async unfollow(followerAddress: string, followingAddress: string) {
+    const follower = await this.usersRepo.findOne({
+      where: { walletAddress: followerAddress },
+      relations: ['following'],
+    });
+
+    if (!follower) {
+      throw new BadRequestException('Follower user not found');
+    }
+
+    const following = await this.usersRepo.findOne({
+      where: { walletAddress: followingAddress },
+    });
+
+    if (!following) {
+      throw new BadRequestException('User to unfollow not found');
+    }
+
+    follower.following = follower.following.filter((u) => u.id !== following.id);
+    return this.usersRepo.save(follower);
+  }
+
+  async getFollowers(address: string) {
+    const user = await this.usersRepo.findOne({
+      where: { walletAddress: address },
+      relations: ['followers'],
+    });
+
+    if (!user) {
+      return [];
+    }
+
+    return user.followers;
+  }
+
+  async getFollowing(address: string) {
+    const user = await this.usersRepo.findOne({
+      where: { walletAddress: address },
+      relations: ['following'],
+    });
+
+    if (!user) {
+      return [];
+    }
+
+    return user.following;
+  }
+
   async register(registerDto: RegisterDto) {
-    const { referralCode, ...userData } = registerDto as RegisterDto & {
+    const { referralCode, walletAddress, ...userData } = registerDto as RegisterDto & {
       email: string;
+      walletAddress: string;
     };
 
     let referrer: Users | null = null;
@@ -40,6 +127,7 @@ export class UsersService {
 
     const newUser = this.usersRepo.create({
       ...userData,
+      walletAddress,
       referralCode: this.generateReferralCode(),
     });
 

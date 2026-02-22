@@ -8,6 +8,7 @@ import { IndexerModule } from './indexer/indexer.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { SearchModule } from './search/search.module';
+import { UsersModule } from './user/users.module';
 
 @Module({
   imports: [
@@ -31,7 +32,8 @@ import { SearchModule } from './search/search.module';
     IndexerModule,
     AnalyticsModule,
     NotificationsModule,
-    SearchModule
+    SearchModule,
+    UsersModule
   ],
   controllers: [],
   providers: [],
