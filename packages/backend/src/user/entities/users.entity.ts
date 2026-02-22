@@ -2,6 +2,8 @@ import {
   Column,
   Entity,
   JoinColumn,
+  JoinTable,
+  ManyToMany,
   ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
@@ -13,6 +15,9 @@ export class Users {
   id: string;
 
   @Column({ unique: true })
+  walletAddress: string;
+
+  @Column({ unique: true, nullable: true })
   email: string;
 
   @Column({ unique: true })
@@ -24,6 +29,17 @@ export class Users {
 
   @OneToMany(() => Users, (user) => user.referredBy)
   referrals: Users[];
+
+  @ManyToMany(() => Users, (user) => user.followers)
+  @JoinTable({
+    name: 'follows',
+    joinColumn: { name: 'followerId', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'followingId', referencedColumnName: 'id' },
+  })
+  following: Users[];
+
+  @ManyToMany(() => Users, (user) => user.following)
+  followers: Users[];
 
   @Column({ type: 'tsvector', nullable: true })
   searchVector: string;
