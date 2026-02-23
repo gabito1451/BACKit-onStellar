@@ -25,7 +25,7 @@ test.describe('App Smoke Test', () => {
 
         // Verify navigation to profile page
         await expect(page).toHaveURL(/\/profile\//);
-
+        //what
         // Check if profile specific elements are present (even if skeleton)
         await expect(page.locator('body')).toBeVisible();
     });
