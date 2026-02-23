@@ -2,14 +2,14 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CallsController } from './calls.controller';
 import { CallsService } from './calls.service';
-import { CallEntity } from './calls.entity';
-import { IpfsService } from '../storage/ipfs.service';
-import { NotificationsModule } from '../notifications/notifications.module';
+import { CallsRepository } from './calls.repository';
+import { Call } from './entities/call.entity';
+import { CallReport } from './entities/call-report.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([CallEntity]), NotificationsModule],
+  imports: [TypeOrmModule.forFeature([Call, CallReport])],
   controllers: [CallsController],
-  providers: [CallsService, IpfsService],
-  exports: [CallsService],
+  providers: [CallsService, CallsRepository],
+  exports: [CallsService, CallsRepository],
 })
-export class CallsModule { }
+export class CallsModule {}
