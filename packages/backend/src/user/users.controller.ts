@@ -9,6 +9,7 @@ import {
   ValidationPipe,
   UsePipes,
 } from '@nestjs/common';
+import { ThrottleMutation } from '../throttler/decorators/throttle-mutation.decorator';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { FollowDto } from './dto/follow.dto';
@@ -21,6 +22,7 @@ export class UsersController {
   // ─── existing endpoints — unchanged ──────────────────────────────────────
 
   @Post(':address/follow')
+  @ThrottleMutation()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Follow a user' })
   @ApiParam({ name: 'address', description: 'Address of the user to follow' })
@@ -35,6 +37,7 @@ export class UsersController {
   }
 
   @Post(':address/unfollow')
+  @ThrottleMutation()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Unfollow a user' })
   @ApiParam({ name: 'address', description: 'Address of the user to unfollow' })

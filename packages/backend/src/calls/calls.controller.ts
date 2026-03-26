@@ -13,6 +13,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { CacheInterceptor, CacheKey, CacheTTL } from '@nestjs/cache-manager';
+import { ThrottleMutation } from '../throttler/decorators/throttle-mutation.decorator';
 import { CallsService } from './calls.service';
 import { ReportCallDto } from './dto/report-call.dto';
 import { QueryCallsDto } from './dto/query-calls.dto';
@@ -37,6 +38,7 @@ export class CallsController {
 
   @Post(':id/report')
   @UseGuards(JwtAuthGuard)
+  @ThrottleMutation()
   @HttpCode(HttpStatus.OK)
   reportCall(
     @Param('id', ParseUUIDPipe) id: string,
