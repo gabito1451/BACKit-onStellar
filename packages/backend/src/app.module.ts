@@ -68,6 +68,7 @@ import { CommentsModule } from './comments/comments.module';
     SearchModule,
     UsersModule,
     TokensModule,
+    PayoutsModule,
     GatewaysModule,
     AuditModule,
     FirewallModule,

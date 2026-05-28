@@ -9,13 +9,31 @@ import StakingInterface from "./StakingInterface";
 import StakingDrawer from "./StakingDrawer";
 import PriceChart from "./PriceChart";
 import { CallDetailData } from "@/types";
-import { useMediaQuery } from "@/hooks/useMediaQuery"; 
+import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { useWalletContext } from "./WalletContext";
+
+interface UserPosition {
+  stake: number;
+  side: "YES" | "NO";
+  payout: number;
+}
 
 export default function CallDetail({ call }: { call: CallDetailData }) {
   const [timeLeft, setTimeLeft] = useState("");
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [odds, setOdds] = useState<{ yes: number; no: number } | null>(null);
+  const [userPosition, setUserPosition] = useState<UserPosition | null>(null);
   const isMobile = useMediaQuery('(max-width: 768px)');
+  const { publicKey } = useWalletContext();
+
+  useEffect(() => {
+    if (call.resolved && publicKey) {
+      fetch(`/api/calls/${call.id}/position?address=${publicKey}`)
+        .then((res) => res.ok ? res.json() : null)
+        .then((data) => data && setUserPosition(data))
+        .catch(() => null);
+    }
+  }, [call.id, call.resolved, publicKey]);
 
   useEffect(() => {
     // Fetch odds from backend
@@ -80,9 +98,18 @@ export default function CallDetail({ call }: { call: CallDetailData }) {
           </div>
         </div>
 
-        {/* Right column - Staking (Desktop) */}
+        {/* Right column - Staking / Claim (Desktop) */}
         <div className="hidden lg:block space-y-8">
-          <StakingInterface call={call} onStake={handleStake} odds={odds} />
+          {call.resolved && userPosition ? (
+            <ClaimPayout
+              call={call}
+              userStake={userPosition.stake}
+              userSide={userPosition.side}
+              payoutAmount={userPosition.payout}
+            />
+          ) : !call.resolved ? (
+            <StakingInterface call={call} onStake={handleStake} odds={odds} />
+          ) : null}
           
           {/* Pool summary */}
           <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
@@ -116,6 +143,16 @@ export default function CallDetail({ call }: { call: CallDetailData }) {
       {/* Activity Log - Mobile */}
       {isMobile && (
         <div className="mt-10 pb-24">
+          {call.resolved && userPosition && (
+            <div className="mb-6">
+              <ClaimPayout
+                call={call}
+                userStake={userPosition.stake}
+                userSide={userPosition.side}
+                payoutAmount={userPosition.payout}
+              />
+            </div>
+          )}
           <ActivityLog participants={call.participants} callId={call.id} />
         </div>
       )}

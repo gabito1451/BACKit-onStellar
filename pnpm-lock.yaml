@@ -195,6 +195,9 @@ importers:
 
   packages/frontend:
     dependencies:
+      '@albedo-link/intent':
+        specifier: 0.13.0
+        version: 0.13.0
       '@headlessui/react':
         specifier: ^2.2.9
         version: 2.2.9(react-dom@19.2.3)(react@19.2.3)
@@ -282,6 +285,10 @@ importers:
         version: 5.9.3
 
 packages:
+
+  /@albedo-link/intent@0.13.0:
+    resolution: {integrity: sha512-A8CBXqGQEBMXhwxNXj5inC6HLjyx5Do7jW99NOFeecYd1nPUq8gfM0tvoNoR8H8JQ11aTl9tyQBuu/+l3xeBnQ==}
+    dev: false
 
   /@alloc/quick-lru@5.2.0:
     resolution: {integrity: sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw==}
