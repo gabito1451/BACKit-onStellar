@@ -1,5 +1,16 @@
 use soroban_sdk::{contracttype, Address, Bytes, Map};
 
+/// Describes the condition used to determine whether a call resolves as UP.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum ConditionType {
+    TargetAbove(i128),
+    TargetBelow(i128),
+    PercentUp(u32),
+    PercentDown(u32),
+    Range(i128, i128),
+}
+
 /// Represents a prediction call with all its metadata
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
@@ -34,6 +45,8 @@ pub struct Call {
     pub start_price: i128,
     /// Final price after resolution
     pub end_price: i128,
+    /// On-chain condition used for outcome evaluation
+    pub condition: ConditionType,
     /// Whether the call has been settled
     pub settled: bool,
     /// Creation timestamp

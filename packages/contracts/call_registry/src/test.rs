@@ -16,6 +16,7 @@ impl MockToken {
 
 mod call_registry {
     use super::*;
+    use crate::types::ConditionType;
     use crate::{CallRegistry, CallRegistryClient};
     use crate::storage::DataKey;
 
@@ -164,6 +165,28 @@ fn test_set_fee_above_max_panics() {
         (env, admin, outcome_manager, creator)
     }
 
+    fn create_call_with_default_condition(
+        client: &CallRegistryClient<'_>,
+        creator: &Address,
+        stake_token: &Address,
+        stake_amount: &i128,
+        end_ts: &u64,
+        token_address: &Address,
+        pair_id: &Bytes,
+        ipfs_cid: &Bytes,
+    ) -> crate::types::Call {
+        client.create_call(
+            creator,
+            stake_token,
+            stake_amount,
+            end_ts,
+            token_address,
+            pair_id,
+            ipfs_cid,
+            &ConditionType::TargetAbove(100_000_000_i128),
+        )
+    }
+
     #[test]
     fn test_initialize() {
         let (env, admin, outcome_manager, _) = create_test_env();
@@ -206,7 +229,7 @@ fn test_set_fee_above_max_panics() {
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
 
-        let call = client.create_call(
+        let call = create_call_with_default_condition(&client, 
             &creator,
             &stake_token,
             &100_000_000_i128,
@@ -223,6 +246,7 @@ fn test_set_fee_above_max_panics() {
         assert_eq!(call.total_up_stake, 0);
         assert_eq!(call.total_down_stake, 0);
         assert_eq!(call.outcome, 0);
+        assert_eq!(call.condition, ConditionType::TargetAbove(100_000_000_i128));
         assert_eq!(call.settled, false);
         assert_eq!(call.created_at, 1000);
     }
@@ -242,7 +266,7 @@ fn test_set_fee_above_max_panics() {
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
 
-        client.create_call(
+        create_call_with_default_condition(&client, 
             &creator,
             &stake_token,
             &-100_000_000_i128, // Invalid
@@ -268,7 +292,7 @@ fn test_set_fee_above_max_panics() {
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
 
-        client.create_call(
+        create_call_with_default_condition(&client, 
             &creator,
             &stake_token,
             &100_000_000_i128,
@@ -295,7 +319,7 @@ fn test_set_fee_above_max_panics() {
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
 
-        let call = client.create_call(
+        let call = create_call_with_default_condition(&client, 
             &creator,
             &stake_token,
             &100_000_000_i128,
@@ -332,7 +356,7 @@ fn test_set_fee_above_max_panics() {
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
 
-        let call = client.create_call(
+        let call = create_call_with_default_condition(&client, 
             &creator,
             &stake_token,
             &100_000_000_i128,
@@ -369,7 +393,7 @@ fn test_set_fee_above_max_panics() {
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
 
-        let call = client.create_call(
+        let call = create_call_with_default_condition(&client, 
             &creator,
             &stake_token,
             &100_000_000_i128,
@@ -402,7 +426,7 @@ fn test_set_fee_above_max_panics() {
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
 
-        let call = client.create_call(
+        let call = create_call_with_default_condition(&client, 
             &creator,
             &stake_token,
             &100_000_000_i128,
@@ -430,7 +454,7 @@ fn test_set_fee_above_max_panics() {
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
 
-        let created_call = client.create_call(
+        let created_call = create_call_with_default_condition(&client, 
             &creator,
             &stake_token,
             &100_000_000_i128,
@@ -478,7 +502,7 @@ fn test_set_fee_above_max_panics() {
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
 
-        let call = client.create_call(
+        let call = create_call_with_default_condition(&client, 
             &creator,
             &stake_token,
             &100_000_000_i128,
@@ -518,7 +542,7 @@ fn test_set_fee_above_max_panics() {
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
 
-        let call = client.create_call(
+        let call = create_call_with_default_condition(&client, 
             &creator,
             &stake_token,
             &100_000_000_i128,
@@ -554,7 +578,7 @@ fn test_set_fee_above_max_panics() {
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
 
-        let call = client.create_call(
+        let call = create_call_with_default_condition(&client, 
             &creator,
             &stake_token,
             &100_000_000_i128,
@@ -619,7 +643,7 @@ fn test_set_fee_above_max_panics() {
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
 
         // Create multiple calls
-        client.create_call(
+        create_call_with_default_condition(&client, 
             &creator,
             &stake_token,
             &100_000_000_i128,
@@ -629,7 +653,7 @@ fn test_set_fee_above_max_panics() {
             &ipfs_cid,
         );
 
-        client.create_call(
+        create_call_with_default_condition(&client, 
             &creator,
             &stake_token,
             &100_000_000_i128,
@@ -656,7 +680,7 @@ fn test_set_fee_above_max_panics() {
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
 
-        client.create_call(
+        create_call_with_default_condition(&client, 
             &creator,
             &stake_token,
             &100_000_000_i128,
@@ -665,7 +689,7 @@ fn test_set_fee_above_max_panics() {
             &pair_id,
             &ipfs_cid,
         );
-        client.create_call(
+        create_call_with_default_condition(&client, 
             &creator,
             &stake_token,
             &100_000_000_i128,
@@ -674,7 +698,7 @@ fn test_set_fee_above_max_panics() {
             &pair_id,
             &ipfs_cid,
         );
-        client.create_call(
+        create_call_with_default_condition(&client, 
             &creator,
             &stake_token,
             &100_000_000_i128,
@@ -706,7 +730,7 @@ fn test_set_fee_above_max_panics() {
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
 
-        client.create_call(
+        create_call_with_default_condition(&client, 
             &creator1,
             &stake_token,
             &100_000_000_i128,
@@ -715,7 +739,7 @@ fn test_set_fee_above_max_panics() {
             &pair_id,
             &ipfs_cid,
         );
-        client.create_call(
+        create_call_with_default_condition(&client, 
             &creator2,
             &stake_token,
             &100_000_000_i128,
@@ -729,7 +753,7 @@ fn test_set_fee_above_max_panics() {
             env.storage().instance().set(&DataKey::CallCounter, &4u64);
         });
 
-        let last_call = client.create_call(
+        let last_call = create_call_with_default_condition(&client, 
             &creator1,
             &stake_token,
             &100_000_000_i128,
@@ -763,7 +787,7 @@ fn test_set_fee_above_max_panics() {
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
 
         for _ in 0..25 {
-            client.create_call(
+            create_call_with_default_condition(&client, 
                 &creator,
                 &stake_token,
                 &100_000_000_i128,
@@ -795,7 +819,7 @@ fn test_set_fee_above_max_panics() {
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
 
-        client.create_call(
+        create_call_with_default_condition(&client, 
             &creator1,
             &stake_token,
             &100_000_000_i128,
@@ -804,7 +828,7 @@ fn test_set_fee_above_max_panics() {
             &pair_id,
             &ipfs_cid,
         );
-        client.create_call(
+        create_call_with_default_condition(&client, 
             &creator2,
             &stake_token,
             &100_000_000_i128,
@@ -813,7 +837,7 @@ fn test_set_fee_above_max_panics() {
             &pair_id,
             &ipfs_cid,
         );
-        client.create_call(
+        create_call_with_default_condition(&client, 
             &creator1,
             &stake_token,
             &100_000_000_i128,
@@ -847,7 +871,7 @@ fn test_set_fee_above_max_panics() {
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
 
-        let call = client.create_call(
+        let call = create_call_with_default_condition(&client, 
             &creator,
             &stake_token,
             &100_000_000_i128,
@@ -887,7 +911,7 @@ fn test_set_fee_above_max_panics() {
         let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
         let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
 
-        let call = client.create_call(
+        let call = create_call_with_default_condition(&client, 
             &creator,
             &stake_token,
             &100_000_000_i128,
@@ -909,5 +933,167 @@ fn test_set_fee_above_max_panics() {
         // Verify totals
         assert_eq!(call_updated.total_up_stake, 80_000_000);
         assert_eq!(call_updated.total_down_stake, 40_000_000);
+    }
+
+    #[test]
+    fn test_get_condition_returns_stored_condition() {
+        let (env, admin, outcome_manager, creator) = create_test_env();
+        let contract_id = env.register_contract(None, CallRegistry);
+        let client = CallRegistryClient::new(&env, &contract_id);
+
+        client.initialize(&admin, &outcome_manager);
+        env.ledger().set_timestamp(1000);
+
+        let stake_token = env.register_contract(None, MockToken);
+        let token_address = Address::generate(&env);
+        let pair_id = Bytes::from_slice(&env, b"USDC/XLM");
+        let ipfs_cid = Bytes::from_slice(&env, b"QmXxxx");
+        let condition = ConditionType::Range(90_000_000_i128, 110_000_000_i128);
+
+        let call = client.create_call(
+            &creator,
+            &stake_token,
+            &100_000_000_i128,
+            &2000u64,
+            &token_address,
+            &pair_id,
+            &ipfs_cid,
+            &condition,
+        );
+
+        let stored = client.get_condition(&call.id);
+        assert_eq!(stored, condition);
+    }
+
+    #[test]
+    fn test_evaluate_condition_target_above() {
+        let (env, client, _admin, _om) = setup();
+
+        assert!(client.evaluate_condition(
+            &ConditionType::TargetAbove(100_i128),
+            &100_i128,
+            &101_i128,
+        ));
+        assert!(!client.evaluate_condition(
+            &ConditionType::TargetAbove(100_i128),
+            &100_i128,
+            &100_i128,
+        ));
+        assert!(!client.evaluate_condition(
+            &ConditionType::TargetAbove(100_i128),
+            &100_i128,
+            &99_i128,
+        ));
+
+        let _ = env;
+    }
+
+    #[test]
+    fn test_evaluate_condition_target_below() {
+        let (_env, client, _admin, _om) = setup();
+
+        assert!(client.evaluate_condition(
+            &ConditionType::TargetBelow(100_i128),
+            &100_i128,
+            &99_i128,
+        ));
+        assert!(!client.evaluate_condition(
+            &ConditionType::TargetBelow(100_i128),
+            &100_i128,
+            &100_i128,
+        ));
+        assert!(!client.evaluate_condition(
+            &ConditionType::TargetBelow(100_i128),
+            &100_i128,
+            &101_i128,
+        ));
+    }
+
+    #[test]
+    fn test_evaluate_condition_percent_up() {
+        let (_env, client, _admin, _om) = setup();
+
+        assert!(client.evaluate_condition(
+            &ConditionType::PercentUp(10_u32),
+            &100_i128,
+            &110_i128,
+        ));
+        assert!(client.evaluate_condition(
+            &ConditionType::PercentUp(10_u32),
+            &100_i128,
+            &111_i128,
+        ));
+        assert!(!client.evaluate_condition(
+            &ConditionType::PercentUp(10_u32),
+            &100_i128,
+            &109_i128,
+        ));
+        assert!(!client.evaluate_condition(
+            &ConditionType::PercentUp(10_u32),
+            &0_i128,
+            &120_i128,
+        ));
+    }
+
+    #[test]
+    fn test_evaluate_condition_percent_down() {
+        let (_env, client, _admin, _om) = setup();
+
+        assert!(client.evaluate_condition(
+            &ConditionType::PercentDown(10_u32),
+            &100_i128,
+            &90_i128,
+        ));
+        assert!(client.evaluate_condition(
+            &ConditionType::PercentDown(10_u32),
+            &100_i128,
+            &89_i128,
+        ));
+        assert!(!client.evaluate_condition(
+            &ConditionType::PercentDown(10_u32),
+            &100_i128,
+            &91_i128,
+        ));
+        assert!(!client.evaluate_condition(
+            &ConditionType::PercentDown(10_u32),
+            &0_i128,
+            &80_i128,
+        ));
+    }
+
+    #[test]
+    fn test_evaluate_condition_range() {
+        let (_env, client, _admin, _om) = setup();
+
+        assert!(client.evaluate_condition(
+            &ConditionType::Range(90_i128, 110_i128),
+            &100_i128,
+            &90_i128,
+        ));
+        assert!(client.evaluate_condition(
+            &ConditionType::Range(90_i128, 110_i128),
+            &100_i128,
+            &100_i128,
+        ));
+        assert!(client.evaluate_condition(
+            &ConditionType::Range(90_i128, 110_i128),
+            &100_i128,
+            &110_i128,
+        ));
+        assert!(!client.evaluate_condition(
+            &ConditionType::Range(90_i128, 110_i128),
+            &100_i128,
+            &89_i128,
+        ));
+        assert!(!client.evaluate_condition(
+            &ConditionType::Range(90_i128, 110_i128),
+            &100_i128,
+            &111_i128,
+        ));
+        assert!(!client.evaluate_condition(
+            &ConditionType::Range(110_i128, 90_i128),
+            &100_i128,
+            &100_i128,
+        ));
     }
 }

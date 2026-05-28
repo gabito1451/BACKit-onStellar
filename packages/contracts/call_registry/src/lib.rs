@@ -21,6 +21,34 @@ const MAX_CALL_PAGE_SIZE: u32 = 20;
 #[contract]
 pub struct CallRegistry;
 
+fn evaluate_condition_impl(condition: &ConditionType, start_price: i128, end_price: i128) -> bool {
+    match condition {
+        ConditionType::TargetAbove(target) => end_price > *target,
+        ConditionType::TargetBelow(target) => end_price < *target,
+        ConditionType::PercentUp(percent) => {
+            if start_price <= 0 {
+                return false;
+            }
+
+            end_price * 100 >= start_price * (100 + *percent as i128)
+        }
+        ConditionType::PercentDown(percent) => {
+            if start_price <= 0 {
+                return false;
+            }
+
+            end_price * 100 <= start_price * (100 - *percent as i128)
+        }
+        ConditionType::Range(min, max) => {
+            if min > max {
+                return false;
+            }
+
+            end_price >= *min && end_price <= *max
+        }
+    }
+}
+
 #[contractimpl]
 impl CallRegistry {
     /// Initialize the contract with admin and outcome manager
@@ -54,6 +82,7 @@ impl CallRegistry {
         token_address: Address,
         pair_id: Bytes,
         ipfs_cid: Bytes,
+        condition: ConditionType,
     ) -> Call {
         creator.require_auth();
 
@@ -84,6 +113,7 @@ impl CallRegistry {
             outcome: 0,
             start_price: 0,
             end_price: 0,
+            condition,
             settled: false,
             created_at: current_timestamp,
         };
@@ -173,6 +203,26 @@ impl CallRegistry {
             Some(call) => call,
             None => panic!("Call does not exist"),
         }
+    }
+
+    /// Evaluate whether price movement satisfies the supplied condition.
+    pub fn evaluate_condition(
+        _env: Env,
+        condition: ConditionType,
+        start_price: i128,
+        end_price: i128,
+    ) -> bool {
+        evaluate_condition_impl(&condition, start_price, end_price)
+    }
+
+    /// Get condition type for a specific call.
+    pub fn get_condition(env: Env, call_id: u64) -> ConditionType {
+        let call = match get_call(&env, call_id) {
+            Some(c) => c,
+            None => panic!("Call does not exist"),
+        };
+
+        call.condition
     }
 
     /// Get all calls created by a specific address
