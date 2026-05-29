@@ -50,7 +50,6 @@ fn evaluate_condition_impl(condition: &ConditionType, start_price: i128, end_pri
 
 #[contractimpl]
 impl CallRegistry {
-
     /// Initialise the contract with an admin and an outcome manager.
     /// # Errors
     /// * [`CallRegistryError::AlreadyInitialized`] – called more than once.
@@ -127,6 +126,7 @@ impl CallRegistry {
             condition,
             settled: false,
             created_at: current_timestamp,
+            cancelled: false,
         };
 
         set_call(&env, &call);
