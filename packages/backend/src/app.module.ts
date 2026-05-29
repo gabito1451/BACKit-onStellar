@@ -18,6 +18,8 @@ import { FirewallMiddleware } from './firewall/firewall.middleware';
 import { CacheModule } from '@nestjs/cache-manager';
 import { TokensModule } from './token/tokens.module';
 import { RelayModule } from './relay/relay.module';
+import { CommentsModule } from './comments/comments.module';
+import { PayoutsModule } from './payouts/payouts.module';
 
 @Module({
   imports: [
@@ -67,10 +69,12 @@ import { RelayModule } from './relay/relay.module';
     SearchModule,
     UsersModule,
     TokensModule,
+    PayoutsModule,
     GatewaysModule,
     AuditModule,
     FirewallModule,
     RelayModule,
+    CommentsModule,
   ],
   controllers: [],
   providers: [],

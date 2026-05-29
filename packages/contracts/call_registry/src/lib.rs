@@ -23,6 +23,34 @@ const MAX_CALL_PAGE_SIZE: u32 = 20;
 #[contract]
 pub struct CallRegistry;
 
+fn evaluate_condition_impl(condition: &ConditionType, start_price: i128, end_price: i128) -> bool {
+    match condition {
+        ConditionType::TargetAbove(target) => end_price > *target,
+        ConditionType::TargetBelow(target) => end_price < *target,
+        ConditionType::PercentUp(percent) => {
+            if start_price <= 0 {
+                return false;
+            }
+
+            end_price * 100 >= start_price * (100 + *percent as i128)
+        }
+        ConditionType::PercentDown(percent) => {
+            if start_price <= 0 {
+                return false;
+            }
+
+            end_price * 100 <= start_price * (100 - *percent as i128)
+        }
+        ConditionType::Range(min, max) => {
+            if min > max {
+                return false;
+            }
+
+            end_price >= *min && end_price <= *max
+        }
+    }
+}
+
 #[contractimpl]
 impl CallRegistry {
     
@@ -68,6 +96,8 @@ impl CallRegistry {
         pair_id: Bytes,
         ipfs_cid: Bytes,
     ) -> Result<Call, CallRegistryError> {
+        condition: ConditionType,
+    ) -> Call {
         creator.require_auth();
 
         if stake_amount <= 0 {
@@ -97,6 +127,7 @@ impl CallRegistry {
             outcome: 0,
             start_price: 0,
             end_price: 0,
+            condition,
             settled: false,
             created_at: current_timestamp,
         };
@@ -126,6 +157,25 @@ impl CallRegistry {
     /// * [`CallRegistryError::CallEnded`]           – call's `end_ts` has passed.
     /// * [`CallRegistryError::CallSettled`]         – call is already settled.
     /// * [`CallRegistryError::InvalidPosition`]     – `position` ∉ {1, 2}.
+    /// Extend the TTL of a specific call's persistent storage entry.
+    /// Anyone may call this to prevent an active call from being archived.
+    pub fn extend_call_ttl(env: Env, call_id: u64) {
+        let key = storage::DataKey::Call(call_id);
+        if !env.storage().persistent().has(&key) {
+            panic!("Call does not exist");
+        }
+        env.storage().persistent().extend_ttl(
+            &key,
+            storage::PERSISTENT_LIFETIME_THRESHOLD,
+            storage::PERSISTENT_BUMP_AMOUNT,
+        );
+
+        // Also extend the staker index if it exists — callers bump both together
+        // Individual StakerCalls keys are address-specific so those are bumped
+        // on interaction (add_staker_call / get_staker_calls).
+    }
+
+    /// Add stake to an existing call
     pub fn stake_on_call(
         env: Env,
         staker: Address,
@@ -288,6 +338,27 @@ impl CallRegistry {
     }
 
     /// Get all calls created by a specific address (unbounded scan — prefer paginated variant).
+    /// Evaluate whether price movement satisfies the supplied condition.
+    pub fn evaluate_condition(
+        _env: Env,
+        condition: ConditionType,
+        start_price: i128,
+        end_price: i128,
+    ) -> bool {
+        evaluate_condition_impl(&condition, start_price, end_price)
+    }
+
+    /// Get condition type for a specific call.
+    pub fn get_condition(env: Env, call_id: u64) -> ConditionType {
+        let call = match get_call(&env, call_id) {
+            Some(c) => c,
+            None => panic!("Call does not exist"),
+        };
+
+        call.condition
+    }
+
+    /// Get all calls created by a specific address
     pub fn get_calls_by_creator(env: Env, creator: Address) -> Vec<Call> {
         let mut calls = Vec::new(&env);
         let total_calls = get_call_counter(&env);
