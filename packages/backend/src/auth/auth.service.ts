@@ -1,6 +1,5 @@
 import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import * as nacl from 'tweetnacl';
-import * as base64 from 'tweetnacl-util';
 
 interface NonceEntry {
   nonce: string;
@@ -37,7 +36,7 @@ export class AuthService {
 
     try {
       const publicKeyBytes = this.stellarAddressToBytes(address);
-      const messageBytes = base64.decodeUTF8(message);
+      const messageBytes = Buffer.from(message, 'utf8');
       const sigBytes = Buffer.from(signature, 'hex');
 
       const valid = nacl.sign.detached.verify(messageBytes, sigBytes, publicKeyBytes);

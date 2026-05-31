@@ -5,7 +5,6 @@ import { IsStellarAddress } from '../common/validators/stellar-address.validator
 import { AuthService } from './auth.service';
 
 class ChallengeDto {
-  @ApiBody({ schema: { example: { address: 'GCXXXXXXXX...' } } })
   @IsStellarAddress()
   address: string;
 }

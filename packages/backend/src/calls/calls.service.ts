@@ -68,6 +68,12 @@ export class CallsService {
     return { cid: cid!, ipfsUrl };
   }
 
+  async getCallOrThrow(id: string) {
+    const call = await this.callsRepository.findOne({ where: { id } });
+    if (!call) throw new NotFoundException('Call not found');
+    return call;
+  }
+
   async reportCall(id: string, reporterAddress: string, dto: ReportCallDto) {
     const call = await this.callsRepository.findOne({ where: { id } });
     if (!call) throw new NotFoundException('Call not found');
