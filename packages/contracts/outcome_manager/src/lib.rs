@@ -16,8 +16,8 @@ use events::{
     emit_payout_claimed, emit_price_observation_submitted,
 };
 use storage::{
-    set_dispute_window, set_max_submission_delay, InstanceKey, Outcome, PriceObservation,
-    SignedOutcome, TempKey,
+    set_dispute_window, set_max_submission_delay, InstanceKey, Outcome, OracleVote,
+    PersistentKey, PriceObservation, SignedOutcome, TempKey,
 };
 use verification::{build_message, verify_signature};
 
