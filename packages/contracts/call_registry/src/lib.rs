@@ -90,6 +90,8 @@ impl CallRegistry {
         env.storage()
             .instance()
             .set(&Symbol::new(&env, "version"), &CONTRACT_VERSION);
+        // Track the 'version' instance key (Config key tracked inside set_config)
+        inc_instance_entry_count(&env, 1);
         extend_storage_ttl(&env);
 
         env.events()
@@ -670,41 +672,19 @@ impl CallRegistry {
         storage::get_global_stats(&env)
     }
 
-    /// Set or correct a call's start price using an oracle-signed payload.
-    pub fn set_start_price(
-        env: Env,
-        call_id: u64,
-        price: i128,
-        oracle_pubkey: BytesN<32>,
-        signature: BytesN<64>,
-    ) -> Result<Call, CallRegistryError> {
-        if price <= 0 {
-            return Err(CallRegistryError::InvalidStakeAmount);
+    /// Return the number of entries currently tracked in instance storage.
+    pub fn get_instance_entry_count(env: Env) -> u32 {
+        storage::get_instance_entry_count(&env)
+    }
+
+    /// Return a storage utilisation snapshot.
+    /// Emits `StorageWarning` if instance entries exceed the threshold.
+    pub fn get_storage_stats(env: Env) -> StorageStats {
+        let stats = storage::get_storage_stats(&env);
+        if stats.instance_entry_count >= INSTANCE_ENTRY_WARNING_THRESHOLD {
+            events::emit_storage_warning(&env, stats.instance_entry_count, stats.estimated_instance_bytes);
         }
-
-        let config = get_config(&env).ok_or(CallRegistryError::NotInitialized)?;
-        config.outcome_manager.require_auth();
-
-        let mut call = get_call(&env, call_id).ok_or(CallRegistryError::CallNotFound)?;
-        if call.settled {
-            return Err(CallRegistryError::CallSettled);
-        }
-        if call.cancelled {
-            panic!("Call has been cancelled");
-        }
-        if call.voided {
-            panic!("Call has been voided");
-        }
-
-        let message = build_start_price_message(&env, call_id, price);
-        env.crypto()
-            .ed25519_verify(&oracle_pubkey, &message, &signature);
-
-        call.start_price = price;
-        set_call(&env, &call);
-        extend_storage_ttl(&env);
-
-        Ok(call)
+        stats
     }
 
     /// Return the current contract version.
