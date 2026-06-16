@@ -2,6 +2,30 @@
 
 use soroban_sdk::{contract, contractimpl, token, Address, Bytes, BytesN, Env, Map, Symbol, Vec};
 
+/// The sentinel value used to represent native XLM as the stake token.
+/// All-zero 32-byte array encoded as a contract Address via
+/// `Address::from_contract_id(BytesN::<32>::from_array(&env, &[0u8; 32]))`.
+///
+/// Callers should pass this address in `stake_token` to indicate native XLM.
+pub const NATIVE_XLM_SENTINEL: [u8; 32] = [0u8; 32];
+
+/// Returns `true` when the supplied address is the all-zero sentinel for native XLM.
+#[inline]
+fn is_native_xlm(env: &Env, addr: &Address) -> bool {
+    let sentinel = Address::from_contract_id(BytesN::<32>::from_array(env, &NATIVE_XLM_SENTINEL));
+    *addr == sentinel
+}
+
+/// Transfer tokens from `from` to `to`, dispatching on whether the call uses
+/// native XLM (via `StellarAssetClient`) or a SAC-wrapped token (`token::Client`).
+fn transfer_token(env: &Env, stake_token: &Address, from: &Address, to: &Address, amount: i128) {
+    if is_native_xlm(env, stake_token) {
+        token::StellarAssetClient::new(env, stake_token).transfer(from, to, &amount);
+    } else {
+        token::Client::new(env, stake_token).transfer(from, to, &amount);
+    }
+}
+
 mod admin;
 mod errors;
 mod events;
