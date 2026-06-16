@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Logger,
 } from '@nestjs/common';
 import { Users } from './entities/users.entity';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -13,9 +14,14 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { Inject } from '@nestjs/common';
 import { Follow } from './entities/follow.entity';
+import { NotificationPreferencesService } from '../notifications/notification-preferences.service';
+import { IpfsService } from '../storage/ipfs.service';
+import { CreateProfileDto, UpdateProfileDto } from './dto/profile.dto';
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
+
   constructor(
     @InjectRepository(Users)
     private readonly usersRepo: Repository<Users>,
@@ -23,6 +29,8 @@ export class UsersService {
     private readonly followsRepo: Repository<Follow>,
     private readonly analyticsService: AnalyticsService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
+    private readonly preferenceService: NotificationPreferencesService,
+    private readonly ipfsService: IpfsService,
   ) {}
 
   private generateReferralCode(): string {
@@ -37,6 +45,15 @@ export class UsersService {
         referralCode: this.generateReferralCode(),
       });
       user = await this.usersRepo.save(user);
+      // Default notification preferences on user creation
+      await this.preferenceService
+        .initializePreferences(walletAddress)
+        .catch((err: unknown) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          this.logger.error(
+            `Failed to initialize notification preferences for ${walletAddress}: ${msg}`,
+          );
+        });
     }
     return user;
   }
@@ -133,7 +150,17 @@ export class UsersService {
 
     if (referrer) newUser.referredBy = referrer;
 
-    return this.usersRepo.save(newUser);
+    const savedUser = await this.usersRepo.save(newUser);
+    // Default notification preferences on user creation
+    await this.preferenceService
+      .initializePreferences(walletAddress)
+      .catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.error(
+          `Failed to initialize notification preferences for ${walletAddress}: ${msg}`,
+        );
+      });
+    return savedUser;
   }
 
   async getUserProfile(userId: string) {
@@ -143,7 +170,7 @@ export class UsersService {
     return { ...user, predictorReliability: reliability };
   }
 
-  // ─── NEW: fetch by wallet address with badges ─────────────────────────────
+  // ─── fetch by wallet address with badges ─────────────────────────────
 
   async getUserByAddress(walletAddress: string) {
     const user = await this.usersRepo.findOne({
@@ -168,6 +195,63 @@ export class UsersService {
       reputationScore,
       followerCount,
       followingCount,
+      avatarUrl: user.avatarCid ? `ipfs://${user.avatarCid}` : null,
     };
+  }
+
+  async createProfile(
+    createProfileDto: CreateProfileDto,
+    avatarFile?: Express.Multer.File,
+  ) {
+    let user = await this.usersRepo.findOne({
+      where: { walletAddress: createProfileDto.walletAddress },
+    });
+    if (user) {
+      throw new ConflictException('Profile already exists');
+    }
+
+    let avatarCid: string | undefined;
+    if (avatarFile) {
+      avatarCid = await this.ipfsService.pinAvatar(avatarFile);
+    }
+
+    user = this.usersRepo.create({
+      walletAddress: createProfileDto.walletAddress,
+      referralCode: this.generateReferralCode(),
+      displayName: createProfileDto.displayName,
+      bio: createProfileDto.bio,
+      avatarCid,
+    });
+
+    await this.usersRepo.save(user);
+    return this.getUserByAddress(createProfileDto.walletAddress);
+  }
+
+  async updateProfile(
+    updateProfileDto: UpdateProfileDto,
+    avatarFile?: Express.Multer.File,
+  ) {
+    const user = await this.usersRepo.findOne({
+      where: { walletAddress: updateProfileDto.walletAddress },
+    });
+    if (!user) {
+      throw new NotFoundException(
+        `User ${updateProfileDto.walletAddress} not found`,
+      );
+    }
+
+    if (avatarFile) {
+      user.avatarCid = await this.ipfsService.pinAvatar(avatarFile);
+    }
+    if (updateProfileDto.displayName !== undefined) {
+      user.displayName = updateProfileDto.displayName;
+    }
+    if (updateProfileDto.bio !== undefined) {
+      user.bio = updateProfileDto.bio;
+    }
+
+    await this.usersRepo.save(user);
+    await this.invalidateUserProfile(user.walletAddress);
+    return this.getUserByAddress(user.walletAddress);
   }
 }

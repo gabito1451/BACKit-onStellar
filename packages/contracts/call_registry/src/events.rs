@@ -1,6 +1,9 @@
+use soroban_sdk::symbol_short;
 use soroban_sdk::{Address, Bytes, Env, Symbol};
 
-// ── Existing events (unchanged) ───────────────────────────────────────────────
+pub const PARAM_MAX_STAKE_PER_USER: &str = "max_stake_per_user";
+pub const PARAM_MIN_STAKE: &str = "min_stake";
+pub const PARAM_STAKING_CUTOFF: &str = "staking_cutoff_secs";
 
 /// Emitted when a new call is created
 pub fn emit_call_created(
@@ -9,10 +12,12 @@ pub fn emit_call_created(
     creator: &Address,
     stake_token: &Address,
     stake_amount: i128,
+    start_price: i128,
     end_ts: u64,
     token_address: &Address,
     pair_id: &Bytes,
     ipfs_cid: &Bytes,
+    outcome_count: u32,
 ) {
     env.events().publish(
         ("call_registry", "call_created"),
@@ -21,10 +26,12 @@ pub fn emit_call_created(
             creator.clone(),
             stake_token.clone(),
             stake_amount,
+            start_price,
             end_ts,
             token_address.clone(),
             pair_id.clone(),
             ipfs_cid.clone(),
+            outcome_count,
         ),
     );
 }
@@ -99,5 +106,195 @@ pub fn emit_admin_params_changed_u32(
             old_value,
             new_value,
         ),
+    );
+}
+
+/// Emitted when a creator cancels their call and reclaims their stake
+pub fn emit_call_cancelled(env: &Env, call_id: u64, creator: &Address, refunded_amount: i128) {
+    env.events().publish(
+        ("call_registry", "call_cancelled"),
+        (call_id, creator.clone(), refunded_amount),
+    );
+}
+
+pub fn emit_admin_params_changed_i128(
+    env: &Env,
+    param: &str,
+    changed_by: &Address,
+    old_value: i128,
+    new_value: i128,
+) {
+    env.events().publish(
+        ("call_registry", "admin_params_changed"),
+        (
+            Symbol::new(env, param),
+            changed_by.clone(),
+            old_value,
+            new_value,
+        ),
+    );
+}
+
+pub fn emit_admin_params_changed_u64(
+    env: &Env,
+    param: &str,
+    changed_by: &Address,
+    old_value: u64,
+    new_value: u64,
+) {
+    env.events().publish(
+        ("call_registry", "admin_params_changed"),
+        (
+            Symbol::new(env, param),
+            changed_by.clone(),
+            old_value,
+            new_value,
+        ),
+    );
+}
+pub fn emit_token_whitelisted(env: &Env, token: &Address) {
+    env.events()
+        .publish(("call_registry", "token_whitelisted"), token.clone());
+}
+
+pub fn emit_token_delisted(env: &Env, token: &Address) {
+    env.events()
+        .publish(("call_registry", "token_delisted"), token.clone());
+}
+
+/// Emitted when the admin pauses the contract.
+pub fn emit_contract_paused(env: &Env, admin: &Address) {
+    env.events()
+        .publish(("call_registry", "contract_paused"), admin.clone());
+}
+
+/// Emitted when the admin unpauses the contract.
+pub fn emit_contract_unpaused(env: &Env, admin: &Address) {
+    env.events()
+        .publish(("call_registry", "contract_unpaused"), admin.clone());
+}
+
+pub fn emit_call_metadata_updated(
+    env: &Env,
+    call_id: u64,
+    creator: &Address,
+    old_cid: &Bytes,
+    new_cid: &Bytes,
+    version: u32,
+) {
+    env.events().publish(
+        (symbol_short!("call"), symbol_short!("meta_upd")),
+        (
+            call_id,
+            creator.clone(),
+            old_cid.clone(),
+            new_cid.clone(),
+            version,
+        ),
+    );
+}
+
+/// Emitted when the contract WASM is upgraded
+pub fn emit_contract_upgraded(env: &Env, old_version: u32, new_version: u32, admin: &Address) {
+    env.events().publish(
+        ("call_registry", "contract_upgraded"),
+        (old_version, new_version, admin.clone()),
+    );
+}
+
+// ── Void events ───────────────────────────────────────────────────────────────
+
+/// Emitted when an admin voids a call
+pub fn emit_call_voided(env: &Env, call_id: u64, voided_by: &Address) {
+    env.events().publish(
+        ("call_registry", "call_voided"),
+        (call_id, voided_by.clone()),
+    );
+}
+
+/// Emitted when a staker claims a void refund
+pub fn emit_void_refund_claimed(env: &Env, call_id: u64, staker: &Address, amount: i128) {
+    env.events().publish(
+        ("call_registry", "void_refund_claimed"),
+        (call_id, staker.clone(), amount),
+    );
+}
+
+/// Emitted when instance entry count exceeds the warning threshold.
+pub fn emit_storage_warning(env: &Env, entry_count: u32, estimated_bytes: u32) {
+    env.events().publish(
+        ("call_registry", "storage_warning"),
+        (entry_count, estimated_bytes),
+    );
+}
+
+// ── Native XLM events ─────────────────────────────────────────────────────────
+
+/// Emitted when a new call is created using native XLM as the stake token.
+/// Distinct from `call_created` so indexers can separately tally XLM volume.
+pub fn emit_xlm_call_created(
+    env: &Env,
+    call_id: u64,
+    creator: &Address,
+    stake_amount: i128,
+    start_price: i128,
+    end_ts: u64,
+    token_address: &Address,
+    pair_id: &Bytes,
+    ipfs_cid: &Bytes,
+    outcome_count: u32,
+) {
+    env.events().publish(
+        ("call_registry", "xlm_call_created"),
+        (
+            call_id,
+            creator.clone(),
+            stake_amount,
+            start_price,
+            end_ts,
+            token_address.clone(),
+            pair_id.clone(),
+            ipfs_cid.clone(),
+            outcome_count,
+        ),
+    );
+}
+
+/// Emitted when a staker adds native XLM stake to a call.
+/// Distinct from `stake_added` so indexers can separately tally XLM volume.
+pub fn emit_xlm_stake_added(
+    env: &Env,
+    call_id: u64,
+    staker: &Address,
+    amount: i128,
+    position: u32,
+) {
+    env.events().publish(
+        ("call_registry", "xlm_stake_added"),
+        (call_id, staker.clone(), amount, position),
+    );
+}
+
+/// Emitted when a void refund is paid out in native XLM.
+pub fn emit_xlm_void_refund_claimed(env: &Env, call_id: u64, staker: &Address, amount: i128) {
+    env.events().publish(
+        ("call_registry", "xlm_void_refund"),
+        (call_id, staker.clone(), amount),
+    );
+}
+
+/// Emitted when a call cancelled refund is paid out in native XLM.
+pub fn emit_xlm_call_cancelled(env: &Env, call_id: u64, creator: &Address, refunded_amount: i128) {
+    env.events().publish(
+        ("call_registry", "xlm_call_cancelled"),
+        (call_id, creator.clone(), refunded_amount),
+    );
+}
+
+/// Emitted when escrow payout is made in native XLM.
+pub fn emit_xlm_escrow_released(env: &Env, call_id: u64, to: &Address, amount: i128) {
+    env.events().publish(
+        ("call_registry", "xlm_escrow_released"),
+        (call_id, to.clone(), amount),
     );
 }

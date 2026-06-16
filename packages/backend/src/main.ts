@@ -1,16 +1,13 @@
 import { NestFactory } from '@nestjs/core';
-import { Logger, ValidationPipe } from '@nestjs/common';
+import { ValidationPipe } from '@nestjs/common';
+import { Logger } from 'nestjs-pino';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-import { IoAdapter } from '@nestjs/platform-socket.io';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.useLogger(app.get(Logger)); // Use pino logger
 
-  // Attach the Socket.io WebSocket adapter — required for the EventsGateway
-  app.useWebSocketAdapter(new IoAdapter(app));
-
-  // Enable CORS
   app.enableCors({
     origin: process.env.FRONTEND_URL || 'http://localhost:3000',
     credentials: true,
@@ -22,17 +19,15 @@ async function bootstrap() {
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
-      transformOptions: {
-        enableImplicitConversion: true,
-      },
+      transformOptions: { enableImplicitConversion: true },
     }),
   );
 
-  // Setup Swagger documentation
+  // Swagger
   const config = new DocumentBuilder()
     .setTitle('BACKit on Stellar API')
     .setDescription(
-      'API documentation for BACKit - Blockchain Asset Call Kit on Stellar. ' +
+      'API documentation for BACKit — Blockchain Asset Call Kit on Stellar. ' +
         'A prediction market platform for cryptocurrency trading calls.',
     )
     .setVersion('1.0.0')
@@ -47,15 +42,15 @@ async function bootstrap() {
       'Local Development',
     )
     .addServer('https://api.backit.io', 'Production')
-    .addTag('default', 'General API information')
     .addTag('health', 'Health check and monitoring endpoints')
-    .addTag('authentication', 'User authentication and registration')
-    .addTag('calls', 'Trading call management and predictions')
-    .addTag('feed', 'Social feed and posts')
-    .addTag('profile', 'User profile management')
-    .addTag('create', 'Content creation endpoints')
-    .addTag('oracle', 'Oracle and blockchain interaction endpoints')
-    .addTag('indexer', 'Event indexer endpoints')
+    .addTag('auth', 'Stellar challenge-response authentication')
+    .addTag('calls', 'Trading call management')
+    .addTag('oracle', 'Oracle and price resolution')
+    .addTag('Analytics', 'User and platform analytics')
+    .addTag('users', 'User profiles and social graph')
+    .addTag('indexer', 'Soroban event indexer')
+    .addTag('notifications', 'In-app notifications')
+    .addTag('search', 'Full-text search')
     .addBearerAuth(
       {
         type: 'http',
@@ -72,62 +67,46 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document, {
     customSiteTitle: 'BACKit API Documentation',
-    customfavIcon: 'https://docs.nestjs.com/assets/favicon.ico',
-    customCss: `
-      .swagger-ui .topbar { background-color: #1a1a1a; }
-      .swagger-ui .info { margin: 50px 0; }
-      .swagger-ui .info .title { font-size: 36px; color: #00d4ff; }
-      .swagger-ui .info .description { font-size: 16px; line-height: 1.6; }
-      .swagger-ui .scheme-container { background: #fafafa; padding: 15px; }
-      .swagger-ui .opblock-tag { font-size: 18px; }
-    `,
     swaggerOptions: {
       persistAuthorization: true,
       docExpansion: 'none',
       filter: true,
       showRequestDuration: true,
       tryItOutEnabled: true,
-      displayRequestDuration: true,
-      defaultModelsExpandDepth: 3,
-      defaultModelExpandDepth: 3,
-      syntaxHighlight: {
-        activate: true,
-        theme: 'monokai',
-      },
+      syntaxHighlight: { activate: true, theme: 'monokai' },
     },
   });
 
   const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
   await app.listen(port);
 
-  Logger.log(`🚀 Backend running on http://localhost:${port}`, 'Bootstrap');
-  Logger.log(
+  const logger = app.get(Logger);
+
+  logger.log(`🚀 Backend running on http://localhost:${port}`, 'Bootstrap');
+  logger.log(
     `📚 Swagger documentation available at http://localhost:${port}/api/docs`,
     'Bootstrap',
   );
-  Logger.log(
+  logger.log(
     `📊 API JSON spec available at http://localhost:${port}/api/docs-json`,
     'Bootstrap',
   );
-  Logger.log(
+  logger.log(
     `💚 Health check available at http://localhost:${port}/health`,
     'Bootstrap',
   );
-  Logger.log(
+  logger.log(
     `🔌 WebSocket gateway available at ws://localhost:${port}/ws`,
     'Bootstrap',
   );
-  Logger.log(
+  logger.log(
     `🌍 Environment: ${process.env.NODE_ENV || 'development'}`,
     'Bootstrap',
   );
 }
 
-bootstrap().catch((error) => {
-  Logger.error(
-    `Failed to start application: ${error.message}`,
-    error.stack,
-    'Bootstrap',
-  );
+bootstrap().catch((error: unknown) => {
+  const err = error as Error;
+  console.error(`Failed to start application: ${err.message}`, err.stack);
   process.exit(1);
 });

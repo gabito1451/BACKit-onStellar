@@ -5,9 +5,11 @@ import { SorobanRpc, xdr } from '@stellar/stellar-sdk';
 import { EventLog, EventType } from './event-log.entity';
 import { PlatformSettings } from './entities/platform-settings.entity';
 import { retryWithBackoff } from '../utils/retry';
+import { Retryable } from '../common/decorators/retryable.decorator';
 import { ConfigService } from '../config/config.service';
 import { parseAdminParamsChanged } from './parsers/admin-params.parser';
 import { PayoutsService } from '../payouts/payouts.service';
+import { TreasuryService } from '../treasury/treasury.service';
 
 @Injectable()
 export class IndexerService {
@@ -22,6 +24,7 @@ export class IndexerService {
     private readonly platformSettingsRepository: Repository<PlatformSettings>,
     private readonly configService: ConfigService,
     private readonly payoutsService: PayoutsService,
+    private readonly treasuryService: TreasuryService,
   ) {}
 
   // ─── Status ───────────────────────────────────────────────────────────────
@@ -75,6 +78,7 @@ export class IndexerService {
         await this.dispatchEvent(event);
       }
     } catch (err: any) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       this.logger.error(`Indexer tick failed: ${err.message}`);
     }
   }
@@ -147,14 +151,40 @@ export class IndexerService {
     );
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private async handlePayoutClaimed(
     topics: xdr.ScVal[],
     txHash: string,
     ledger: number,
   ): Promise<void> {
     try {
-      const callId = topics[1]?.u64()?.toString() ?? '';
-      const stakerAddress = topics[2]?.str()?.toString() ?? '';
+      const asString = (val?: xdr.ScVal): string | null => {
+        if (!val) return null;
+        const t = val.switch();
+        if (t === xdr.ScValType.scvString()) return val.str().toString();
+        if (t === xdr.ScValType.scvSymbol()) return val.sym().toString();
+        return null;
+      };
+
+      const asU64 = (val?: xdr.ScVal): string | null => {
+        if (!val) return null;
+        if (val.switch() === xdr.ScValType.scvU64())
+          return val.u64().toString();
+        return null;
+      };
+
+      const asI128Lo = (val?: xdr.ScVal): string | null => {
+        if (!val) return null;
+        if (val.switch() === xdr.ScValType.scvI128()) {
+          return val.i128().lo().toString();
+        }
+        return null;
+      };
+
+      // Support both legacy topic layouts and tuple payloads.
+      const callId = asString(topics[1]) ?? asU64(topics[1]) ?? '';
+      const stakerAddress = asString(topics[2]) ?? '';
+      const amount = asI128Lo(topics[3]) ?? asU64(topics[3]) ?? '0';
       if (!callId || !stakerAddress) return;
 
       await this.payoutsService.markClaimed(
@@ -163,8 +193,19 @@ export class IndexerService {
         txHash,
         new Date(),
       );
-      this.logger.log(`PayoutClaimed synced: call=${callId} staker=${stakerAddress}`);
+
+      // Record a treasury fee entry for this claim.
+      // If your event emits an explicit fee amount or token address, wire it here.
+      await this.treasuryService.recordFeeFromPayoutClaimed({
+        callId,
+        claimedAmount: String(amount ?? '0'),
+        collectedAt: new Date(),
+      });
+      this.logger.log(
+        `PayoutClaimed synced: call=${callId} staker=${stakerAddress}`,
+      );
     } catch (err: any) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       this.logger.warn(`Failed to parse PayoutClaimed event: ${err.message}`);
     }
   }
@@ -239,6 +280,7 @@ export class IndexerService {
 
   // ─── Get Latest Ledger ────────────────────────────────────────────────────
 
+  @Retryable(3, 1000)
   async getLatestLedger(): Promise<SorobanRpc.Api.GetLatestLedgerResponse> {
     return retryWithBackoff(
       () => this.rpcServer.getLatestLedger(),

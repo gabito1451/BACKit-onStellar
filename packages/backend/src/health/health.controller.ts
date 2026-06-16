@@ -1,4 +1,4 @@
-import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
+import { Controller, Get, ServiceUnavailableException, VERSION_NEUTRAL } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
@@ -8,15 +8,17 @@ import {
   ApiOkResponse,
   ApiResponse,
 } from '@nestjs/swagger';
+import { ShutdownService } from './shutdown.service';
 
 @ApiTags('health')
-@Controller('health')
+@Controller({ path: 'health', version: VERSION_NEUTRAL })
 export class HealthController {
   private readonly rpcUrl: string;
 
   constructor(
     private readonly dataSource: DataSource,
     private readonly httpService: HttpService,
+    private readonly shutdownService: ShutdownService,
   ) {
     this.rpcUrl =
       process.env.STELLAR_RPC_URL ?? 'https://soroban-testnet.stellar.org';
@@ -54,6 +56,7 @@ export class HealthController {
     },
   })
   async check() {
+    // eslint-disable-next-line @typescript-eslint/await-thenable
     const [database, stellar_rpc, memory_heap_mb] = await Promise.all([
       this.checkDatabase(),
       this.checkStellarRpc(),
@@ -65,6 +68,8 @@ export class HealthController {
 
     const payload = {
       status,
+      version: process.env.npm_package_version ?? '1.0.0',
+      apiVersion: 'v1',
       database,
       stellar_rpc,
       memory_heap_mb,
@@ -77,6 +82,22 @@ export class HealthController {
     }
 
     return payload;
+  }
+
+  @Get('ready')
+  @ApiOperation({
+    summary: 'Readiness probe',
+    description:
+      'Returns 200 when the application is ready to serve traffic. ' +
+      'Returns 503 during graceful shutdown so load balancers stop routing new requests.',
+  })
+  @ApiOkResponse({ description: 'Application is ready' })
+  @ApiResponse({ status: 503, description: 'Application is shutting down' })
+  ready() {
+    if (this.shutdownService.isShuttingDown()) {
+      throw new ServiceUnavailableException({ status: 'shutting_down' });
+    }
+    return { status: 'ready' };
   }
 
   // ─── Private Checks ───────────────────────────────────────────────────────

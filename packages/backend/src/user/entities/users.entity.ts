@@ -26,6 +26,15 @@ export class Users {
   @Column({ type: 'varchar', length: 10, unique: true, nullable: true })
   referralCode: string;
 
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  displayName: string;
+
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  bio: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  avatarCid: string;
+
   @ManyToOne(() => Users, { nullable: true, onDelete: 'SET NULL' })
   referredBy: Users | null;
 
@@ -43,6 +52,9 @@ export class Users {
     inverseJoinColumn: { name: 'badgeId', referencedColumnName: 'id' },
   })
   badges: Badge[];
+
+  @Column({ type: 'boolean', default: false })
+  banned: boolean;
 
   @CreateDateColumn()
   createdAt: Date;

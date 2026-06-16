@@ -1,9 +1,14 @@
 use soroban_sdk::{Address, Env};
 
+use crate::events::PARAM_MIN_STAKE;
+use backit_shared::is_valid_fee_bps;
+
 use crate::errors::CallRegistryError;
 use crate::events::{
-    emit_admin_params_changed_address, emit_admin_params_changed_u32, PARAM_ADMIN, PARAM_FEE_BPS,
-    PARAM_OUTCOME_MANAGER,
+    emit_admin_params_changed_address, emit_admin_params_changed_i128,
+    emit_admin_params_changed_u32, emit_admin_params_changed_u64, emit_contract_paused,
+    emit_contract_unpaused, emit_token_delisted, emit_token_whitelisted, PARAM_ADMIN,
+    PARAM_FEE_BPS, PARAM_MAX_STAKE_PER_USER, PARAM_OUTCOME_MANAGER, PARAM_STAKING_CUTOFF,
 };
 use crate::storage::{extend_storage_ttl, get_config, set_config};
 
@@ -64,7 +69,7 @@ pub fn set_outcome_manager(env: Env, new_manager: Address) -> Result<(), CallReg
 /// * [`CallRegistryError::NotInitialized`] – contract not initialised.
 /// * [`CallRegistryError::FeeTooHigh`]     – `new_fee_bps` > 10 000.
 pub fn set_fee(env: Env, new_fee_bps: u32) -> Result<(), CallRegistryError> {
-    if new_fee_bps > 10_000 {
+    if !is_valid_fee_bps(new_fee_bps) {
         return Err(CallRegistryError::FeeTooHigh);
     }
 
@@ -81,4 +86,117 @@ pub fn set_fee(env: Env, new_fee_bps: u32) -> Result<(), CallRegistryError> {
     emit_admin_params_changed_u32(&env, PARAM_FEE_BPS, &config.admin, old_fee_bps, new_fee_bps);
 
     Ok(())
+}
+
+/// Set the maximum stake any single user may place per call per position.
+///
+/// Pass `0` to remove the cap (unlimited).
+///
+/// # Authorization
+/// Current admin must sign.
+///
+/// # Panics
+/// * Contract not initialized
+/// * `new_max` is negative
+pub fn set_max_stake_per_user(env: Env, new_max: i128) {
+    if new_max < 0 {
+        panic!("max_stake_per_user cannot be negative");
+    }
+
+    let mut config = get_config(&env).expect("Contract not initialized");
+
+    config.admin.require_auth();
+
+    let old_max = config.max_stake_per_user;
+    config.max_stake_per_user = new_max;
+
+    set_config(&env, &config);
+    extend_storage_ttl(&env);
+
+    emit_admin_params_changed_i128(
+        &env,
+        PARAM_MAX_STAKE_PER_USER,
+        &config.admin,
+        old_max,
+        new_max,
+    );
+}
+
+pub fn whitelist_token(env: Env, token_address: Address) {
+    let mut config = get_config(&env).expect("not initialized");
+    config.admin.require_auth();
+    config.whitelisted_tokens.set(token_address.clone(), true);
+    set_config(&env, &config);
+    emit_token_whitelisted(&env, &token_address);
+}
+
+pub fn remove_token(env: Env, token_address: Address) {
+    let mut config = get_config(&env).expect("not initialized");
+    config.admin.require_auth();
+    config.whitelisted_tokens.remove(token_address.clone());
+    set_config(&env, &config);
+    emit_token_delisted(&env, &token_address);
+}
+
+pub fn set_min_stake(env: Env, new_min_stake: i128) {
+    if new_min_stake < 0 {
+        panic!("min_stake cannot be negative");
+    }
+    let mut config = get_config(&env).expect("not initialized");
+    config.admin.require_auth();
+    let old = config.min_stake;
+    config.min_stake = new_min_stake;
+    set_config(&env, &config);
+    extend_storage_ttl(&env);
+    emit_admin_params_changed_i128(&env, PARAM_MIN_STAKE, &config.admin, old, new_min_stake);
+}
+
+/// Pause the contract — blocks create, stake, and resolve until unpaused.
+/// # Authorization
+/// Current admin must sign.
+pub fn pause(env: Env) {
+    let mut config = get_config(&env).expect("not initialized");
+    config.admin.require_auth();
+    config.paused = true;
+    set_config(&env, &config);
+    extend_storage_ttl(&env);
+    emit_contract_paused(&env, &config.admin);
+}
+
+/// Unpause the contract.
+/// # Authorization
+/// Current admin must sign.
+pub fn unpause(env: Env) {
+    let mut config = get_config(&env).expect("not initialized");
+    config.admin.require_auth();
+    config.paused = false;
+    set_config(&env, &config);
+    extend_storage_ttl(&env);
+    emit_contract_unpaused(&env, &config.admin);
+}
+
+/// Set the staking cutoff window in seconds before `end_ts`.
+///
+/// Staking is rejected when `current_timestamp >= call.end_ts - staking_cutoff_secs`.
+/// Pass `0` to disable the cutoff (allow staking right up to `end_ts`).
+///
+/// # Authorization
+/// Current admin must sign.
+///
+/// # Panics
+/// * Contract not initialized.
+pub fn set_staking_cutoff(env: Env, new_cutoff: u64) {
+    let mut config = get_config(&env).expect("not initialized");
+    config.admin.require_auth();
+    let old_cutoff = config.staking_cutoff_secs;
+    config.staking_cutoff_secs = new_cutoff;
+    set_config(&env, &config);
+    extend_storage_ttl(&env);
+    emit_admin_params_changed_u64(
+        &env,
+        PARAM_STAKING_CUTOFF,
+        &config.admin,
+        old_cutoff,
+        new_cutoff,
+    );
 }
